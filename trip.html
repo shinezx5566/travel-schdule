@@ -693,7 +693,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   <form class="sheet" id="ntsheet" role="dialog" aria-modal="true" aria-labelledby="nt-title">
     <h2 id="nt-title">新增筆記</h2>
     <label>標題<input class="field" id="nt-name" autocomplete="off" placeholder="例如：忍野八海拍照點"></label>
-    <label>日期<select class="field" id="nt-day"></select></label>
+    <label>日期<input class="field" id="nt-date" type="date"></label>
     <label>內容<textarea class="field" id="nt-text" rows="6"></textarea></label>
     <div class="nt-photos" id="nt-photos"></div>
     <button type="button" class="btn ghost" id="nt-addph" hidden>＋ 加照片</button>
@@ -775,7 +775,6 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     $("f-day").innerHTML = DAYS.map((d, i) => { const dt = dateOf(i + 1); return '<option value="' + (i + 1) + '">D' + (i + 1) + " " + (dt.getMonth() + 1) + "/" + dt.getDate() + "（" + WD[dt.getDay()] + "）</option>"; }).join("");
     const opts = MISC_DAYS.map((d) => '<option value="' + d + '">' + (d ? splitHead(splitDate({ label: d })) : "整趟") + "</option>").join("");
     $("ms-day").innerHTML = opts;
-    $("nt-day").innerHTML = opts;
   }
   const ICON = {
     transport: '<path d="M7 4h10a2 2 0 0 1 2 2v8a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2zM5 10h14M8.5 14h.01M15.5 14h.01M8 17l-2 3M16 17l2 3"/>',
@@ -1543,15 +1542,30 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   const noteSubs = new Map(), noteNames = {};
   let nEdit = null, nPhotos = [], nAdded = [], nDelArmed = false, nBusy = 0;
   const blobUrl = (id) => "/_blob/" + encodeURIComponent(id);
+  // A note can carry any date, before, during or after the trip (date "YYYY-MM-DD"); older notes kept a trip day ("M/D").
+  const isoOf = (d) => (d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : "");
+  function noteDate(n) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(n.date || "");
+    if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+    const k = splitDate({ label: n.day });
+    return k ? new Date(START.getFullYear(), Math.floor(k / 100) - 1, k % 100) : null;
+  }
+  const noteTime = (n) => { const d = noteDate(n); return d ? d.getTime() : null; };
+  const noteDateText = (n) => {
+    const d = noteDate(n);
+    if (!d) return "未指定日期";
+    return (d.getFullYear() !== START.getFullYear() ? d.getFullYear() + "/" : "") + (d.getMonth() + 1) + "/" + d.getDate() + "（" + WD[d.getDay()] + "）";
+  };
   function renderNotes() {
     $("note-add").hidden = !canNote || !db || !myId;
     if (!db) { $("notes").innerHTML = '<p class="fine">需要登入 claude.ai 才能看到筆記。</p>'; return; }
     if (!notesLoaded) { $("notes").innerHTML = '<p class="fine">正在載入…</p>'; return; }
-    const list = notes.slice().sort((a, b) => splitDate({ label: a.day }) - splitDate({ label: b.day }) || (b.order ?? 0) - (a.order ?? 0));
+    // Newest date first; notes without a date go last.
+    const list = notes.slice().sort((a, b) => (noteTime(b) ?? -Infinity) - (noteTime(a) ?? -Infinity) || (b.order ?? 0) - (a.order ?? 0));
     $("notes").innerHTML = list.length ? list.map((n) => {
       const ph = Array.isArray(n.photos) ? n.photos : [];
       const mine = canNote && (isOwner || n.uid === myId);
-      return '<article class="ncard' + (mine ? " mine" : "") + '"' + (mine ? ' data-note="' + esc(n.uid + "/" + n.id) + '"' : "") + '><div class="nc-h"><b>' + esc(n.title || "（無標題）") + "</b><small>" + (n.day ? esc(splitHead(splitDate({ label: n.day }))) : "整趟") + "</small></div>" +
+      return '<article class="ncard' + (mine ? " mine" : "") + '"' + (mine ? ' data-note="' + esc(n.uid + "/" + n.id) + '"' : "") + '><div class="nc-h"><b>' + esc(n.title || "（無標題）") + "</b><small>" + esc(noteDateText(n)) + "</small></div>" +
         '<span class="nc-by">' + esc(noteNames[n.uid] || (n.uid === myId ? "我" : "家人")) + "</span>" +
         (n.text ? '<p class="nc-t">' + esc(n.text) + "</p>" : "") +
         (ph.length ? '<div class="nc-ph">' + ph.map((id) => '<img src="' + blobUrl(id) + '" alt="筆記照片" loading="lazy" data-view="' + esc(id) + '">').join("") + "</div>" : "") + "</article>";
@@ -1573,7 +1587,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     nPhotos = n && Array.isArray(n.photos) ? n.photos.slice() : [];
     $("nt-title").textContent = n ? "修改筆記" : "新增筆記";
     $("nt-name").value = n ? n.title || "" : "";
-    $("nt-day").value = n && MISC_DAYS.includes(n.day) ? n.day : "";
+    $("nt-date").value = n ? isoOf(noteDate(n)) : isoOf(new Date());
     $("nt-text").value = n ? n.text || "" : "";
     $("nt-del").hidden = !n; $("nt-del").textContent = "刪除";
     $("nt-err").hidden = true;
@@ -1620,7 +1634,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   $("ntsheet").addEventListener("submit", async (e) => {
     e.preventDefault();
     if (nBusy) { $("nt-err").textContent = "照片還在上傳，請稍等。"; $("nt-err").hidden = false; return; }
-    const body = { title: $("nt-name").value.trim(), day: $("nt-day").value, text: $("nt-text").value.trim(), photos: nPhotos.slice(),
+    const body = { title: $("nt-name").value.trim(), date: /^\d{4}-\d{2}-\d{2}$/.test($("nt-date").value) ? $("nt-date").value : "", text: $("nt-text").value.trim(), photos: nPhotos.slice(),
       order: nEdit && typeof nEdit.order === "number" ? nEdit.order : Date.now() };
     if (!body.title && !body.text && !body.photos.length) { $("nt-err").textContent = "請寫點內容或加張照片。"; $("nt-err").hidden = false; return; }
     const dropped = (nEdit && Array.isArray(nEdit.photos) ? nEdit.photos : []).concat(nAdded).filter((id) => !body.photos.includes(id));
