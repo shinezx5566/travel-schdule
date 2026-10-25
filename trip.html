@@ -296,6 +296,9 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 .sc-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .sc-t b { font-size: 15px; font-weight: 700; overflow-wrap: anywhere; }
 .sc-t small { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.sc-tbtn { border: 0; background: transparent; color: inherit; font: inherit; text-align: left; padding: 0; cursor: pointer; }
+.sc-tbtn b::after { content: " ✎"; font-weight: 400; font-size: 12px; color: var(--muted); }
+#split-add { margin-top: 4px; padding: 12px; }
 .sc-payer { flex: none; max-width: 52%; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px; font-size: 12.5px; font-weight: 700; background: var(--surface-2); color: var(--fg); text-align: center; font-variant-numeric: tabular-nums; }
 .sc-payer.done { background: transparent; border-style: dashed; color: var(--muted); }
 .sc-row { display: flex; gap: 6px; align-items: center; }
@@ -526,6 +529,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       <div class="split-settle" id="split-settle" hidden></div>
       <p class="err" id="split-err" role="alert" hidden></p>
       <div class="splitlist" id="split"></div>
+      <button class="addrow" id="split-add" type="button" hidden>＋ 新增分攤項目</button>
     </div>
     <div class="box" id="misc-box" hidden>
       <h3>零星花費</h3>
@@ -648,6 +652,24 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   </form>
 </div>
 
+<div class="scrim" id="sp-scrim" hidden>
+  <form class="sheet" id="spsheet" role="dialog" aria-modal="true" aria-labelledby="sp-title">
+    <h2 id="sp-title">新增分攤項目</h2>
+    <label>日期<select class="field" id="sp-day"></select></label>
+    <label>名稱<input class="field" id="sp-name" autocomplete="off" placeholder="例如：晚餐 燒肉店"></label>
+    <label>付款方式<input class="field" id="sp-pay" autocomplete="off" placeholder="例如：只收現金"></label>
+    <label>預算提示<input class="field" id="sp-hint" autocomplete="off" placeholder="例如：¥3,000/ppl"></label>
+    <div class="seg" id="sp-cur" role="group" aria-label="預設幣別"><button type="button" data-cur="JPY">¥ 日幣</button><button type="button" data-cur="TWD">NT$ 台幣</button></div>
+    <p class="fine">誰要分攤（點一下取消，沒選的人會顯示「不分攤」）</p>
+    <div class="seg" id="sp-na" role="group" aria-label="分攤的人"></div>
+    <p class="err" id="sp-err" role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" class="btn danger" id="sp-del" hidden>刪除</button>
+      <button type="button" class="btn ghost" id="sp-cancel">取消</button>
+      <button type="submit" class="btn" id="sp-save">儲存</button>
+    </div>
+  </form>
+</div>
 <div class="scrim" id="ms-scrim" hidden>
   <form class="sheet" id="msheet" role="dialog" aria-modal="true" aria-labelledby="ms-title">
     <h2 id="ms-title">新增零星花費</h2>
@@ -1230,6 +1252,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 
   function renderSplit() {
     const box = $("split");
+    $("split-add").hidden = !isOwner || !db || !splitLoaded;
     if (!db || !splitLoaded) { box.innerHTML = '<p class="fine">' + (db ? "正在載入分攤表…" : "需要登入 claude.ai 才能看到分攤表。") + "</p>"; return; }
     if (!split.length) { box.innerHTML = '<p class="fine">分攤表還沒有項目。</p>'; return; }
     const byDate = (a, b) => splitDate(a) - splitDate(b) || String(a.time || "").localeCompare(String(b.time || "")) || (a.order ?? 0) - (b.order ?? 0);
@@ -1261,7 +1284,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
         : PNAME[payer] + "墊 " + (amt === null ? "金額未填" : fmtCur(pcur, amt)) + (settled ? " · 已收齊" : "");
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       const payCls = "sc-payer" + (settled || payer === "none" ? " done" : "");
-      html += '<article class="scard"><div class="sc-top"><div class="sc-t"><b>' + esc(splitLabel(r)) + "</b>" + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</div>" +
+      const head = "<b>" + esc(splitLabel(r)) + "</b>" + (sub ? "<small>" + esc(sub) + "</small>" : "");
+      html += '<article class="scard"><div class="sc-top">' + (isOwner ? '<button type="button" class="sc-t sc-tbtn" data-spedit="' + esc(r.id) + '" aria-label="' + esc(splitLabel(r)) + '，點一下修改或刪除">' + head + "</button>" : '<div class="sc-t">' + head + "</div>") +
         (isOwner ? '<button type="button" class="' + payCls + '" data-payrow="' + esc(r.id) + '" aria-label="墊付：' + esc(payText) + '，點一下修改">' + esc(payText) + "</button>"
           : '<span class="' + payCls + '">' + esc(payText) + "</span>") + "</div>";
       BILL_GROUPS.forEach((g) => {
@@ -1691,6 +1715,74 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     } catch (err) { closeRc(); saveErr(err); }
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("rc-view").hidden) closeRc(); });
+  // Adding, editing and removing split cards (owner). A card's date is the "M/D " prefix of its label.
+  let spEdit = null, spDelArmed = false, spNa = [];
+  function openSplitEditor(r) {
+    if (!isOwner || !db) return;
+    spEdit = r || null; spDelArmed = false;
+    const label = r ? String(r.label || "") : "";
+    const m = /^(\d{1,2}\/\d{1,2})\s*/.exec(label);
+    $("sp-title").textContent = r ? "修改分攤項目" : "新增分攤項目";
+    $("sp-day").innerHTML = MISC_DAYS.map((d) => '<option value="' + d + '">' + (d ? splitHead(splitDate({ label: d })) : "整趟") + "</option>").join("");
+    $("sp-day").value = m && MISC_DAYS.includes(m[1]) ? m[1] : "";
+    $("sp-name").value = m ? label.slice(m[0].length) : label;
+    $("sp-pay").value = r ? r.pay || "" : "";
+    $("sp-hint").value = r ? r.hint || "" : "";
+    segSet("sp-cur", "cur", r && r.cur === "TWD" ? "TWD" : "JPY");
+    spNa = r && Array.isArray(r.na) ? r.na.slice() : [];
+    drawSpNa();
+    $("sp-del").hidden = !r; $("sp-del").textContent = "刪除";
+    $("sp-err").hidden = true;
+    $("sp-scrim").hidden = false;
+    if (!r) $("sp-name").focus();
+  }
+  function drawSpNa() {
+    $("sp-na").innerHTML = PEOPLE.map(([k, n]) => '<button type="button" data-na="' + esc(k) + '" aria-pressed="' + String(!spNa.includes(k)) + '">' + esc(n) + "</button>").join("");
+  }
+  const closeSplitEditor = () => { $("sp-scrim").hidden = true; spEdit = null; };
+  const spErr = (t) => { $("sp-err").textContent = t; $("sp-err").hidden = false; };
+  $("sp-na").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-na]");
+    if (!b) return;
+    const k = b.dataset.na;
+    spNa = spNa.includes(k) ? spNa.filter((x) => x !== k) : spNa.concat(k);
+    drawSpNa();
+  });
+  $("sp-cur").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (b) $("sp-cur").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  });
+  $("spsheet").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = $("sp-name").value.trim();
+    if (!name) { spErr("請填名稱。"); return; }
+    if (spNa.length >= PEOPLE.length) { spErr("至少要有一個人分攤。"); return; }
+    const d = $("sp-day").value;
+    const body = { label: (d ? d + " " : "") + name, pay: $("sp-pay").value.trim(), hint: $("sp-hint").value.trim(), cur: segVal("sp-cur", "cur"), na: spNa.slice() };
+    $("sp-save").disabled = true;
+    try {
+      if (spEdit) { await db.doc("split/" + spEdit.id).update(body); patchRow(spEdit, body); }
+      else await db.collection("split").add(Object.assign(body, { cells: {}, order: Date.now() }));
+      closeSplitEditor(); renderSplit();
+    } catch (err) { spErr("儲存失敗，請再試一次（" + ((err && (err.code || err.message)) || "未知錯誤") + "）"); }
+    $("sp-save").disabled = false;
+  });
+  $("sp-del").addEventListener("click", async () => {
+    if (!spEdit) return;
+    if (!spDelArmed) { spDelArmed = true; $("sp-del").textContent = "再按一次刪除"; return; }
+    const r = spEdit, rc = Array.isArray(r.receipts) ? r.receipts : [];
+    try {
+      await db.doc("split/" + r.id).delete();
+      if (rc.length && (await getAssets())) rc.forEach((a) => assets.delete(a).catch(() => {}));
+      split = split.filter((x) => x.id !== r.id);
+      closeSplitEditor(); renderSplit();
+    } catch (err) { spErr("刪除失敗，請再試一次（" + ((err && (err.code || err.message)) || "未知錯誤") + "）"); }
+  });
+  $("sp-cancel").addEventListener("click", closeSplitEditor);
+  $("sp-scrim").addEventListener("click", (e) => { if (e.target === $("sp-scrim")) closeSplitEditor(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("sp-scrim").hidden) closeSplitEditor(); });
+  $("split").addEventListener("click", (e) => { const b = e.target.closest("[data-spedit]"); if (b && isOwner) openSplitEditor(rowOf(b.dataset.spedit)); });
+  $("split-add").addEventListener("click", () => openSplitEditor(null));
   $("by-cat").addEventListener("toggle", (e) => {
     const d = e.target.closest && e.target.closest("details.cat");
     if (!d) return;
