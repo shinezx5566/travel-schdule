@@ -2242,7 +2242,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   function closeSheet() { $("scrim").hidden = true; editing = null; }
   function showErr(e) {
     $("f-err").hidden = false;
-    $("f-err").textContent = e && e.code === "invalid_argument" ? "你目前只有檢視權限，無法修改行程。" : "儲存失敗，請稍後再試一次。";
+    $("f-err").textContent = e && e.code === "invalid_argument" ? "你目前只有檢視權限，無法修改行程。" : "儲存失敗，請再試一次（" + ((e && (e.code || e.message)) || "未知錯誤") + "）";
     if (e && e.code === "invalid_argument") { canWrite = false; render(); }
   }
 
