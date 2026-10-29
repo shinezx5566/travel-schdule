@@ -253,3 +253,9 @@ A static file published with the page: `water`, `major`, `minor` (base map), `pl
 - iPhone: number fields save on focusout / Enter (not relying on the change event); the keyboard only appears if focus happens in the tap itself; PDFs show as page images in the page (opening a new tab is blocked inside the app).
 - Currencies are fixed to yen / NT$.
 - Offline version: a short script at the top of `trip.html` steps in when there is no `window.claude` and the page is not on a claude.ai domain. It supplies the four capabilities `db`, `user`, `assets` and `downloads` itself (data and photos in IndexedDB; downloads use the share sheet on phones and a plain download on computers), so the rest of the code is unchanged. It also adds the manifest and the service worker (`sw.js`: the page itself is network-first, libraries and fonts cache-first). When you change the cache list in `sw.js`, bump its `VERSION`.
+
+---
+
+## License
+
+MIT, see [LICENSE](LICENSE). Free to use, modify and redistribute as long as the copyright notice is kept; the software comes with no warranty.
