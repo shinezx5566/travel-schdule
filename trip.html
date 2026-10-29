@@ -334,6 +334,51 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 #misc-add { margin-top: 10px; padding: 12px; }
 .li.adv-tot { font-weight: 700; border-top: 2px solid var(--line); }
 .io-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+/* PDF export: an off-screen, always-light A4 column, drawn section by section into page images */
+#pdfdoc { position: absolute; left: -10000px; top: 0; width: 720px; background: #fff; color: #1d2622; font-family: var(--font-body); font-size: 13px; line-height: 1.5;
+  --bg: #fff; --surface: #f4f1ea; --surface-2: #e9e4d8; --fg: #1d2622; --muted: #5f6a64; --line: #d8d2c2; --card: #fff; --card-fg: #1d2622; --gold: #a07a12; --accent: #c8642c; color-scheme: light; }
+#pdfdoc .pd-sec { background: #fff; padding-bottom: 4px; }
+#pdfdoc .pd-blk { padding-bottom: 10px; }
+#pdfdoc h1 { font-size: 26px; margin: 0 0 4px; }
+#pdfdoc h2 { font-size: 19px; margin: 0; padding-bottom: 6px; border-bottom: 2px solid #1d2622; }
+#pdfdoc .pd-sub { color: #5f6a64; margin: 0; }
+#pdfdoc .pd-dayh { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; padding-bottom: 6px; border-bottom: 2px solid #1d2622; }
+#pdfdoc .pd-dayh b { font-size: 20px; }
+#pdfdoc .pd-dayh span { color: #5f6a64; }
+#pdfdoc .pd-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; }
+#pdfdoc .pd-ov { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 8px; padding: 7px 0; border-top: 1px solid #e3ded2; }
+#pdfdoc .pd-ov span:last-child { color: #5f6a64; }
+#pdfdoc .pd-move { color: #5f6a64; font-size: 12px; padding: 0 0 6px 74px; }
+#pdfdoc .pd-item { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; padding: 8px 0 2px; border-top: 1px solid #e3ded2; }
+#pdfdoc .pd-item.alt { opacity: .6; }
+#pdfdoc .pd-time { font-weight: 700; font-variant-numeric: tabular-nums; }
+#pdfdoc .pd-time small { display: block; font-weight: 400; color: #5f6a64; }
+#pdfdoc .pd-t { font-size: 15px; font-weight: 700; }
+#pdfdoc .pd-tag { font-size: 11px; font-weight: 500; padding: 1px 8px; border-radius: 999px; background: #e9e4d8; margin-left: 6px; }
+#pdfdoc .pd-plan { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; background: #c8642c; color: #fff; margin-right: 6px; }
+#pdfdoc .pd-plan.off { background: #e9e4d8; color: #5f6a64; }
+#pdfdoc .pd-note { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+#pdfdoc .pd-kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 1px 10px; margin: 4px 0 0; font-size: 12.5px; }
+#pdfdoc .pd-kv dt { color: #5f6a64; white-space: nowrap; }
+#pdfdoc .pd-kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+#pdfdoc .pd-kv dd.warn { font-weight: 700; }
+#pdfdoc .pd-cost { margin-top: 4px; font-weight: 700; color: #a07a12; }
+#pdfdoc .pd-guide { display: block; max-width: 100%; max-height: 560px; margin-top: 6px; border-radius: 8px; }
+#pdfdoc .flight-tips summary h3 { color: #e5484d; }
+#pdfdoc .flight-tips.plain summary h3 { color: #1d2622; }
+#pdfdoc .chev { display: none; }
+#pdfdoc .pd-kpi { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+#pdfdoc .pd-kpi div { background: #f4f1ea; border-radius: 10px; padding: 8px 10px; }
+#pdfdoc .pd-kpi small { display: block; color: #5f6a64; }
+#pdfdoc .pd-kpi b { font-size: 16px; font-variant-numeric: tabular-nums; }
+#pdfdoc .pd-sp { display: grid; grid-template-columns: 74px minmax(0, 1fr) 110px repeat(var(--n), 64px); gap: 4px; align-items: center; padding: 5px 0; border-top: 1px solid #e3ded2; font-size: 12px; }
+#pdfdoc .pd-sp.head { color: #5f6a64; font-weight: 700; border-top: 0; }
+#pdfdoc .pd-sp small { display: block; color: #5f6a64; overflow-wrap: anywhere; }
+#pdfdoc .pd-c { text-align: center; border-radius: 6px; padding: 3px 2px; font-variant-numeric: tabular-nums; }
+#pdfdoc .pd-c.paid { background: #ecd9a0; }
+#pdfdoc .pd-c.owed { border: 1px solid #5f6a64; }
+#pdfdoc .pd-c.blank, #pdfdoc .pd-c.na { color: #8b968f; }
+#pdfdoc .pd-todo { padding: 5px 0; border-top: 1px solid #e3ded2; }
 .flight-tips.plain summary h3 { color: var(--fg); }
 .adv-h { margin-top: 8px; }
 .notes { display: flex; flex-direction: column; gap: 10px; }
@@ -547,6 +592,12 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     <div class="box"><h3>依類別｜點開看細項</h3><div id="by-cat"></div></div>
     <div class="box"><h3>依天數</h3><div id="by-day" class="list"></div></div>
     <p class="fine" id="cost-note"></p>
+    <div class="box" id="pdf-box" hidden>
+      <h3>匯出 PDF</h3>
+      <p class="fine">把整趟行程整理成一份 PDF。家人版只有行程，可以直接傳給家人；完整版另含金額、分攤表、零星花費、現金、資訊和行前待辦，只給自己看。</p>
+      <div class="io-btns"><button type="button" class="btn ghost" data-pdf-ver="family">家人版 PDF</button><button type="button" class="btn ghost" data-pdf-ver="full">完整版 PDF</button></div>
+      <p class="fine" id="pdf-msg" role="status"></p>
+    </div>
     <div class="box" id="io-box" hidden>
       <h3>匯入／匯出內容</h3>
       <p class="fine">把這趟的設定和資料（行程、分攤表、零星花費、行前待辦、地圖連結、方案選擇）存成一個檔案，或從檔案載入。匯入會取代目前的內容；每個人的攜帶清單和筆記不在檔案裡。</p>
@@ -1200,6 +1251,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 
   function renderCost() {
     $("io-box").hidden = !isOwner || !db;
+    $("pdf-box").hidden = !isOwner || !db;
     const priced = items.filter((it) => !isAlt(it) && (num(it.yen) || num(it.ntd)));
     const jpy = priced.reduce((s, it) => s + num(it.yen), 0);
     const twd = priced.reduce((s, it) => s + num(it.ntd), 0);
@@ -2104,6 +2156,150 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     }
     ioMsg("匯入完成，共寫入 " + jobs.length + " 筆。");
   }
+  // PDF: the whole trip laid out in an off-screen light column (#pdfdoc), each section drawn by html2canvas
+  // and cut into A4 pages between blocks (.pd-blk), so a card is never split across pages unless it is taller
+  // than a page. 家人版 holds the plan only; 完整版 adds amounts, the split table, misc costs, cash, 資訊 and to-dos.
+  const PDF_LIBS = ["https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
+  let pdfBusy = false;
+  const pdfMsg = (t) => { $("pdf-msg").textContent = t; };
+  const loadJs = (src) => new Promise((ok, no) => {
+    if (document.querySelector('script[src="' + src + '"]')) { ok(); return; }
+    const el = document.createElement("script"); el.src = src; el.onload = ok; el.onerror = () => { el.remove(); no(new Error("load")); }; document.head.appendChild(el);
+  });
+  const dayLabel = (n) => { const dt = dateOf(n); return "D" + n + " " + (dt.getMonth() + 1) + "/" + dt.getDate() + "（" + WD[dt.getDay()] + "）"; };
+  function pdfItemHtml(it, full) {
+    const f = it.info && typeof it.info === "object" ? it.info : {};
+    const kv = [];
+    if (it.addr) kv.push(["地址", esc(it.addr)]);
+    const trains = Array.isArray(it.trains) ? it.trains.filter((t) => t && isTime(t.dep)) : [];
+    if (trains.length) kv.push(["班次", trains.map((t) => esc(t.dep + (isTime(t.arr) ? " → " + t.arr : "") + " " + (t.name || "") + (t.main ? "（主要）" : t.tag ? "（" + t.tag + "）" : ""))).join("<br>")]);
+    INFO_ROWS.forEach(([k, label]) => { if (typeof f[k] === "string" && f[k]) kv.push([label, esc(f[k]), /只收現金|不接受|需預約|週.休/.test(f[k]) && (k === "pay" || k === "reserve")]); });
+    if (it.url && /^https?:\/\//i.test(it.url)) kv.push(["連結", esc((it.preview && it.preview.title) || hostOf(it.url))]);
+    if (it.pdf && it.pdf.name) kv.push(["PDF", esc(it.pdf.name) + "（在網頁裡查看）"]);
+    const plan = PLAN_NAME[it.plan] ? '<span class="pd-plan' + (isAlt(it) ? " off" : "") + '">' + PLAN_NAME[it.plan] + (isAlt(it) ? "" : "・已選") + "</span>" : "";
+    const endT = isTime(it.end) && it.end > it.time ? it.end : "";
+    const cost = full ? moneyOf(it) : "";
+    const guide = typeof it.guide === "string" && /^\/_blob\/[0-9a-f]+$/.test(it.guide) ? '<img class="pd-guide" src="' + esc(it.guide) + '" alt="">' : "";
+    return '<div class="pd-item' + (isAlt(it) ? " alt" : "") + '"><div class="pd-time">' + esc(it.time || "") + (endT ? "<small>" + esc(endT) + "</small>" : "") + "</div><div>" +
+      '<div class="pd-t">' + plan + esc(it.title) + '<span class="pd-tag">' + esc(CATS[it.cat] || "其他") + "</span></div>" +
+      (it.note ? '<p class="pd-note">' + esc(it.note) + "</p>" : "") +
+      (kv.length ? '<dl class="pd-kv">' + kv.map(([k, v, w]) => "<dt>" + k + "</dt><dd" + (w ? ' class="warn"' : "") + ">" + v + "</dd>").join("") + "</dl>" : "") +
+      (cost ? '<div class="pd-cost">全團 ' + cost + "</div>" : "") + guide + "</div></div>";
+  }
+  function pdfMoveHtml(a, b) {
+    const m = a.move && typeof a.move === "object" ? a.move : null;
+    const gap = isTime(a.end) && isTime(b.time) ? mins(b.time) - mins(a.end) : null;
+    if (!m && !(gap > 0)) return "";
+    return '<div class="pd-move">↓ ' + esc(m && m.text ? m.text : "空檔") + (gap > 0 ? " · " + dur(gap) : "") + "</div>";
+  }
+  function pdfHtml(full) {
+    const blk = (h) => '<div class="pd-blk">' + h + "</div>";
+    const last = dateOf(DAYS.length);
+    let h = '<section class="pd-sec">' + blk("<h1>" + esc(cfg.title || "旅行行程") + '</h1><p class="pd-sub">' + START.getFullYear() + "/" + (START.getMonth() + 1) + "/" + START.getDate() + " – " + (last.getMonth() + 1) + "/" + last.getDate() +
+      "，" + DAYS.length + " 天，" + PEOPLE.length + " 人｜" + (full ? "完整版" : "家人版") + "｜" + new Date().toLocaleDateString("zh-TW") + " 匯出</p>");
+    h += blk("<h2>每日概要</h2>" + DAYS.map((d, i) => {
+      const r = REGIONS[d.region] || { name: "", color: "var(--r-1)" };
+      return '<div class="pd-ov"><b>' + dayLabel(i + 1) + "</b><span>" + esc(d.theme) + '</span><span><i class="pd-dot" style="background:' + r.color + '"></i>' + esc(r.name) + "</span></div>";
+    }).join(""));
+    (cfg.tips || []).forEach((t) => { h += blk('<div class="box flight-tips' + (t.alert ? "" : " plain") + '"><summary><h3>' + esc(t.title || "") + "</h3></summary>" + (t.html || "") + "</div>"); });
+    h += "</section>";
+    DAYS.forEach((d, i) => {
+      const n = i + 1, list = dayItems(n), r = REGIONS[d.region] || { name: "", color: "var(--r-1)" };
+      h += '<section class="pd-sec">' + blk('<div class="pd-dayh"><b>' + dayLabel(n) + "</b><span>" + esc(d.theme) + '</span><span><i class="pd-dot" style="background:' + r.color + '"></i>' + esc(r.name) + "</span></div>");
+      list.forEach((it, j) => {
+        const pair = j && PLAN_NAME[it.plan] && PLAN_NAME[list[j - 1].plan];
+        const conn = !j ? "" : pair ? '<div class="pd-move">或</div>' : pdfMoveHtml(isAlt(list[j - 1]) && j > 1 ? list[j - 2] : list[j - 1], it);
+        h += blk(conn + pdfItemHtml(it, full));
+      });
+      if (!list.length) h += blk('<p class="pd-sub">這天沒有行程。</p>');
+      h += "</section>";
+    });
+    if (!full) return h;
+    const priced = items.filter((it) => !isAlt(it) && (num(it.yen) || num(it.ntd)));
+    const jpy = priced.reduce((s, it) => s + num(it.yen), 0), twd = priced.reduce((s, it) => s + num(it.ntd), 0);
+    h += '<section class="pd-sec">' + blk("<h2>花費</h2>") + blk('<div class="pd-kpi"><div><small>全團總計</small><b>' + ntd(jpy * RATE + twd) + "</b></div><div><small>每人平均</small><b>" + ntd((jpy * RATE + twd) / PAX) +
+      "</b></div><div><small>日幣部分</small><b>" + yen(jpy) + "</b></div><div><small>" + esc(cfg.twdLabel || "台幣部分") + "</small><b>" + ntd(twd) + "</b></div></div>") +
+      blk('<div class="box"><h3>依天數</h3><div class="list">' + DAYS.map((d, i) => '<div class="li"><span>' + dayLabel(i + 1) + " " + esc(d.theme) + "</span><span>" + ntd(priced.filter((it) => it.day === i + 1).reduce((a, it) => a + twdOf(it), 0)) + "</span></div>").join("") + "</div></div>") +
+      (pcfg.cashHtml ? blk('<div class="box">' + pcfg.cashHtml.replace(/^<div class="box">|<\/div>$/g, "") + "</div>") : "") + "</section>";
+    const byDate = (a, b) => splitDate(a) - splitDate(b) || String(a.time || "").localeCompare(String(b.time || "")) || (a.order ?? 0) - (b.order ?? 0);
+    const keys = BILL_GROUPS.flatMap((g) => g.members).filter((k) => PNAME[k]);
+    h += '<section class="pd-sec" style="--n:' + keys.length + '">' + blk("<h2>分攤表</h2>") + blk('<p class="pd-sub">黃底＝已結，框線＝尚欠，空白＝還沒記，—＝不分攤。</p><div class="pd-sp head"><span>日期</span><span>項目</span><span>墊付</span>' + keys.map((k) => "<span>" + esc(PNAME[k]) + "</span>").join("") + "</div>");
+    split.slice().sort(byDate).forEach((r) => {
+      const na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
+      const payer = payerOf(r), amt = cellNum(r.paidAmt);
+      const pay = payer === "none" ? "無墊付" : PNAME[payer] + " " + (amt === null ? "未填" : fmtCur(payCurOf(r), amt));
+      const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
+      h += blk('<div class="pd-sp"><span>' + esc(splitHead(splitDate(r))) + "</span><span>" + esc(splitLabel(r)) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</span><span>" + esc(pay) + "</span>" + keys.map((k) => {
+        if (na.includes(k)) return '<span class="pd-c na">—</span>';
+        const v = cellNum(cells[k]);
+        return v === null ? '<span class="pd-c blank">' + esc(hintOf(r, k)) + "</span>" : '<span class="pd-c ' + stateOf(r, k) + '">' + esc(fmtCur(curOf(r, k), v)) + "</span>";
+      }).join("") + "</div>");
+    });
+    h += "</section>";
+    const ml = misc.slice().sort((a, b) => splitDate({ label: a.day }) - splitDate({ label: b.day }) || (a.order ?? 0) - (b.order ?? 0));
+    h += '<section class="pd-sec">' + blk("<h2>零星花費</h2>") + (ml.length ? ml.map((m) => {
+      const v = cellNum(m.amt), sub = [m.day ? splitHead(splitDate({ label: m.day })) : "整趟", m.pay, m.hint ? "預估 " + m.hint : "", m.note].filter(Boolean).join("｜");
+      return blk('<div class="li"><span><b>' + esc(m.label || "（未命名）") + '</b><br><small class="pd-sub">' + esc(sub) + "</small></span><span>" + (v === null ? "未填" : fmtCur(m.cur === "TWD" ? "TWD" : "JPY", v)) + "</span></div>");
+    }).join("") : blk('<p class="pd-sub">沒有零星花費。</p>'));
+    // 資訊 starts a page; each of its boxes is its own block so a page break falls between them.
+    const tmp = document.createElement("div");
+    tmp.innerHTML = pcfg.infoHtml || "";
+    const parts = [...tmp.children].map((c) => c.outerHTML);
+    h += '</section><section class="pd-sec">' + blk("<h2>" + esc(pcfg.infoTitle || "資訊") + "</h2>" + (parts.shift() || "")) + parts.map(blk).join("");
+    h += blk("<h2>行前待辦</h2>" + todos.slice().sort((a, b) => (a.done - b.done) || ((a.order ?? 0) - (b.order ?? 0))).map((t) => '<div class="pd-todo">' + (t.done ? "☑ " : "☐ ") + esc(t.text) + "</div>").join(""));
+    return h + "</section>";
+  }
+  async function exportPdf(full) {
+    if (pdfBusy) return;
+    let dl = null;
+    try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
+    if (!dl) { pdfMsg("這個畫面不能下載檔案，請在 claude.ai 開這個頁面再匯出。"); return; }
+    pdfBusy = true;
+    const doc = document.createElement("div");
+    doc.id = "pdfdoc";
+    try {
+      pdfMsg("正在載入 PDF 工具…");
+      for (const src of PDF_LIBS) await loadJs(src);
+      doc.innerHTML = pdfHtml(full);
+      document.body.appendChild(doc);
+      await Promise.all([...doc.querySelectorAll("img")].map((im) => (im.complete ? null : new Promise((ok) => { im.onload = im.onerror = ok; }))));
+      try { await document.fonts.ready; } catch (e) {}
+      const pdf = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
+      const PW = 595.28, PH = 841.89, M = 30, W = doc.offsetWidth, k = (PW - 2 * M) / W, H = (PH - 2 * M) / k;
+      const secs = [...doc.querySelectorAll(".pd-sec")];
+      let first = true;
+      for (let i = 0; i < secs.length; i++) {
+        pdfMsg("正在產生 PDF… " + (i + 1) + "／" + secs.length);
+        const sec = secs[i], top = sec.getBoundingClientRect().top, sh = sec.offsetHeight;
+        // Stay under the ~16M-pixel canvas ceiling of phones.
+        const scale = Math.min(2, Math.sqrt(16e6 / (W * sh)));
+        const canvas = await window.html2canvas(sec, { scale, backgroundColor: "#ffffff", useCORS: true, logging: false });
+        const blocks = [...sec.querySelectorAll(".pd-blk")].map((b) => { const r = b.getBoundingClientRect(); return [r.top - top, r.bottom - top]; });
+        let y = 0;
+        while (y < sh - 1) {
+          let cut = Math.min(sh, y + H);
+          if (cut < sh) blocks.forEach(([t, b]) => { if (t > y + 1 && t < cut && b > cut) cut = Math.min(cut, t); });
+          const part = document.createElement("canvas");
+          part.width = canvas.width; part.height = Math.max(1, Math.round((cut - y) * scale));
+          part.getContext("2d").drawImage(canvas, 0, Math.round(y * scale), canvas.width, part.height, 0, 0, canvas.width, part.height);
+          if (!first) pdf.addPage();
+          first = false;
+          pdf.addImage(part.toDataURL("image/jpeg", 0.85), "JPEG", M, M, PW - 2 * M, (cut - y) * k);
+          y = cut;
+        }
+      }
+      const name = (cfg.title || "旅行行程").replace(/[\\/:*?"<>|]/g, "") + "-" + (full ? "完整版" : "家人版") + ".pdf";
+      pdfMsg("請在跳出的視窗確認下載。");
+      await dl.save({ filename: name, data: pdf.output("blob") });
+      pdfMsg("已匯出 " + name);
+    } catch (err) {
+      pdfMsg(err && err.code === "declined" ? "已取消匯出。" : err && err.message === "load" ? "PDF 工具載入失敗，請檢查網路後再試一次。" : "匯出失敗（" + ((err && (err.code || err.message)) || "未知錯誤") + "）");
+    } finally {
+      doc.remove();
+      pdfBusy = false;
+    }
+  }
+  $("pdf-box").addEventListener("click", (e) => { const b = e.target.closest("[data-pdf-ver]"); if (b && isOwner && db) exportPdf(b.dataset.pdfVer === "full"); });
   $("io-export").addEventListener("click", () => { if (isOwner && db) exportContent(); });
   $("io-import").addEventListener("click", () => {
     if (!isOwner || !db) return;
