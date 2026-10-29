@@ -413,6 +413,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 .nav button.editor-only:not(.on) { display: none; }
 .topr { display: inline-flex; align-items: center; gap: 8px; }
 .rolebtn { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.rolebtn.icon { padding: 5px 8px; line-height: 0; }
+.rolebtn.icon svg { width: 18px; height: 18px; }
 .rolebtn.on { background: var(--accent); border-color: var(--accent); color: #1a120c; }
 .split-sum { margin: 0; font-size: 14px; font-weight: 700; color: var(--fg); }
 .list { display: flex; flex-direction: column; }
@@ -474,6 +476,24 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 .sheet .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; margin-top: 4px; }
 .sheet .actions .danger { margin-right: auto; }
 .err { color: var(--accent); font-size: 13px; margin: 0; }
+/* Trip settings sheet */
+.cf-h { margin: 10px 0 0; font-size: 15px; color: var(--fg); }
+.cf-list { display: flex; flex-direction: column; gap: 8px; }
+.cf-row { display: grid; gap: 8px; align-items: center; }
+.cf-row .field { min-width: 0; }
+.cf-row b { font-size: 13px; font-variant-numeric: tabular-nums; }
+.cf-row.r { grid-template-columns: minmax(0, 1fr) auto 38px; }
+.cf-row.d { grid-template-columns: minmax(0, 1fr) minmax(0, 150px); }
+.cf-row.d input { grid-column: 1 / -1; grid-row: 2; }
+.cf-row.g { grid-template-columns: auto minmax(0, 1fr) 38px; }
+.cf-row.p { grid-template-columns: minmax(0, 1fr) minmax(0, 120px) auto 38px; }
+.cf-x { flex: none; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 18px; }
+.cf-x:disabled { opacity: .35; }
+.cf-tones { display: flex; gap: 4px; }
+.cf-tone { width: 25px; height: 25px; border-radius: 50%; border: 3px solid transparent; padding: 0; }
+.cf-tone[aria-pressed="true"] { border-color: var(--fg); }
+.sheet label.cf-me { flex-direction: row; align-items: center; gap: 4px; }
+#cfg-start { color: var(--fg); border-color: var(--accent); }
 /* Phone layout: time sits above each card, the day strip scrolls sideways, larger tap targets */
 @media (max-width: 560px) {
   body { font-size: 16px; }
@@ -538,10 +558,11 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 <div class="wrap">
   <header class="top">
     <h1 id="trip-title"></h1>
-    <span class="topr"><button type="button" class="rolebtn" id="rolebtn" hidden>檢視者畫面</button><span class="sync" id="sync"><i></i><span>連線中</span></span></span>
+    <span class="topr"><button type="button" class="rolebtn icon" id="cfgbtn" aria-label="行程設定" title="行程設定" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button><button type="button" class="rolebtn" id="rolebtn" hidden>檢視者畫面</button><span class="sync" id="sync"><i></i><span>連線中</span></span></span>
   </header>
 
   <section id="view-plan" class="panel">
+    <button class="addrow" id="cfg-start" type="button" hidden>現在顯示的是範例行程。按這裡設定你自己的旅行：名稱、日期、天數、旅伴。</button>
     <nav class="days" id="days" aria-label="選擇日期"></nav>
     <nav class="days mini" id="days-mini" aria-label="選擇日期（固定在頂端）" hidden></nav>
     <div class="dayhead">
@@ -703,6 +724,38 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   </form>
 </div>
 
+<div class="scrim" id="cf-scrim" hidden>
+  <form class="sheet" id="cfsheet" role="dialog" aria-modal="true" aria-labelledby="cf-title" novalidate>
+    <h2 id="cf-title">行程設定</h2>
+    <label>旅行名稱<input class="field" id="cf-name" autocomplete="off" placeholder="例如：京都賞楓五日"></label>
+    <div class="grid2"><label>出發日期<input class="field" id="cf-start" type="date"></label><label>天數<input class="field" id="cf-days" type="number" inputmode="numeric" min="1" max="60"></label></div>
+    <h3 class="cf-h">地區</h3>
+    <p class="fine">每天可以標一個地區，日期列下方的色點就是地區的顏色。</p>
+    <div class="cf-list" id="cf-regions"></div>
+    <button type="button" class="btn ghost" id="cf-addreg">＋ 新增地區</button>
+    <h3 class="cf-h">每天的主題</h3>
+    <div class="cf-list" id="cf-daylist"></div>
+    <p class="fine" id="cf-dayhint"></p>
+    <h3 class="cf-h">分組</h3>
+    <p class="fine">分攤表依分組排列，各組分開結算（例如各家庭一組）。</p>
+    <div class="cf-list" id="cf-groups"></div>
+    <button type="button" class="btn ghost" id="cf-addgrp">＋ 新增分組</button>
+    <h3 class="cf-h">旅伴</h3>
+    <p class="fine">勾「我」的人是預設的墊付人。</p>
+    <div class="cf-list" id="cf-people"></div>
+    <button type="button" class="btn ghost" id="cf-addppl">＋ 新增旅伴</button>
+    <h3 class="cf-h">花費</h3>
+    <div class="grid2"><label>日幣→台幣匯率<input class="field" id="cf-rate" inputmode="decimal" autocomplete="off" placeholder="例如：0.21"></label><label>台幣總計的名稱<input class="field" id="cf-twd" autocomplete="off" placeholder="例如：台幣部分（機票）"></label></div>
+    <label>花費說明補充<input class="field" id="cf-note" autocomplete="off" placeholder="例如：不含個人購物。"></label>
+    <h3 class="cf-h">預設攜帶清單</h3>
+    <label>一行一項，每個人第一次打開時會放進自己的清單<textarea class="field" id="cf-pack" rows="6"></textarea></label>
+    <p class="err" id="cf-err" role="alert" hidden></p>
+    <div class="actions">
+      <button type="button" class="btn ghost" id="cf-cancel">取消</button>
+      <button type="submit" class="btn" id="cf-save">儲存</button>
+    </div>
+  </form>
+</div>
 <div class="scrim" id="sp-scrim" hidden>
   <form class="sheet" id="spsheet" role="dialog" aria-modal="true" aria-labelledby="sp-title">
     <h2 id="sp-title">新增分攤項目</h2>
@@ -1992,7 +2045,155 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     ).join("") : '<p class="fine">待辦都清空了。</p>';
   }
 
+  // Trip settings (owner): title, dates, regions, each day's theme and region, bill groups, people, rate and the
+  // packing list defaults. Edited as a draft and written to meta/config in one go; tips and private/config keep
+  // their stored values. Starting from the built-in example gives a blank title and today's date.
+  const TONES = ["綠", "藍", "橘", "金", "紫", "粉"];
+  let cd = null;
+  const cfErr = (t) => { $("cf-err").textContent = t; $("cf-err").hidden = !t; return false; };
+  const freshKey = (prefix, used) => { let n = 1; while (used.includes(prefix + n)) n++; return prefix + n; };
+  function openCfg() {
+    if (!isOwner || !db) return;
+    const c = cfgStored ? cfg : EXAMPLE_CONFIG;
+    const groups = (Array.isArray(c.groups) && c.groups.length ? c.groups : [{ id: "A", name: "全員", members: (c.people || []).map((x) => x.key) }])
+      .map((g) => ({ id: String(g.id), name: g.name || String(g.id), members: Array.isArray(g.members) ? g.members : [] }));
+    const regions = Object.entries(c.regions || {}).map(([key, r]) => ({ key, name: r.name || key, tone: Math.min(6, Math.max(1, +r.tone || 1)) }));
+    cd = {
+      regions: regions.length ? regions : [{ key: "r1", name: "地區 1", tone: 1 }],
+      days: (c.days || []).map((d) => ({ region: d.region || "", theme: cfgStored ? d.theme || "" : "" })),
+      groups: groups.map(({ id, name }) => ({ id, name })),
+      people: (c.people || []).map((x) => ({ key: x.key, name: x.name || "", group: (groups.find((g) => g.members.includes(x.key)) || groups[0]).id })),
+      owner: c.owner, start: cfgStored ? c.start : isoOf(new Date())
+    };
+    if (!cd.days.length) cd.days.push({ region: cd.regions[0].key, theme: "" });
+    if (!cd.people.length) cd.people.push({ key: "p1", name: "我", group: cd.groups[0].id });
+    $("cf-name").value = cfgStored ? c.title || "" : "";
+    $("cf-start").value = cd.start;
+    $("cf-days").value = cd.days.length;
+    $("cf-rate").value = c.rate || 0.2;
+    $("cf-twd").value = c.twdLabel || "";
+    $("cf-note").value = c.costNote || "";
+    $("cf-pack").value = (c.pack && Array.isArray(c.pack.items) ? c.pack.items : []).join("\n");
+    cfErr("");
+    drawCfg();
+    $("cf-scrim").hidden = false;
+    if (!cfgStored) $("cf-name").focus();
+  }
+  const closeCfg = () => { $("cf-scrim").hidden = true; cd = null; };
+  const cfRegOpts = (sel) => '<option value="">（不標）</option>' + cd.regions.map((r) => '<option value="' + esc(r.key) + '"' + (r.key === sel ? " selected" : "") + ">" + esc(r.name || "（未命名）") + "</option>").join("");
+  const cfDayLabel = (i) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cd.start || ""), dt = m ? new Date(+m[1], +m[2] - 1, +m[3] + i) : null;
+    return "D" + (i + 1) + (dt ? " " + (dt.getMonth() + 1) + "/" + dt.getDate() + "（" + WD[dt.getDay()] + "）" : "");
+  };
+  const cfDayRow = (d, i) => '<div class="cf-row d"><b>' + cfDayLabel(i) + '</b><input class="field" data-cf="theme" data-i="' + i + '" value="' + esc(d.theme) + '" placeholder="這天的主題" aria-label="第 ' + (i + 1) + ' 天主題">' +
+    '<select class="field cf-sel" data-cf="dreg" data-i="' + i + '" aria-label="第 ' + (i + 1) + ' 天地區">' + cfRegOpts(d.region) + "</select></div>";
+  const cfDayHint = () => {
+    const later = items.filter((it) => it.day > cd.days.length).length;
+    $("cf-dayhint").textContent = later ? "第 " + cd.days.length + " 天之後還有 " + later + " 個行程，天數減少後會看不到（不會刪除，把天數加回來就會出現）。" : "";
+  };
+  // A field's change fires when the next one is tapped, so these update rows in place instead of redrawing them;
+  // a redraw would replace the field just tapped.
+  function cfSyncDays() {
+    const list = $("cf-daylist");
+    while (list.children.length > cd.days.length) list.lastElementChild.remove();
+    for (let i = list.children.length; i < cd.days.length; i++) list.insertAdjacentHTML("beforeend", cfDayRow(cd.days[i], i));
+    [...list.children].forEach((row, i) => { row.firstElementChild.textContent = cfDayLabel(i); });
+    cfDayHint();
+  }
+  function cfSyncNames() {
+    document.querySelectorAll("#cf-daylist [data-cf=dreg] option").forEach((o) => { const r = cd.regions.find((x) => x.key === o.value); if (r) o.textContent = r.name || "（未命名）"; });
+    document.querySelectorAll("#cf-people [data-cf=pgrp] option").forEach((o) => { const g = cd.groups.find((x) => x.id === o.value); if (g) o.textContent = g.name || g.id; });
+  }
+  function drawCfg() {
+    $("cf-regions").innerHTML = cd.regions.map((r, i) => '<div class="cf-row r"><input class="field" data-cf="rname" data-i="' + i + '" value="' + esc(r.name) + '" placeholder="地區名稱" aria-label="地區名稱"><span class="cf-tones">' +
+      TONES.map((t, j) => '<button type="button" class="cf-tone" style="background:var(--r-' + (j + 1) + ')" data-cf="tone" data-i="' + i + '" data-v="' + (j + 1) + '" aria-pressed="' + (r.tone === j + 1) + '" aria-label="' + t + '色"></button>').join("") +
+      '</span><button type="button" class="cf-x" data-cf="rdel" data-i="' + i + '" aria-label="刪除地區 ' + esc(r.name) + '"' + (cd.regions.length < 2 ? " disabled" : "") + ">×</button></div>").join("");
+    $("cf-daylist").innerHTML = cd.days.map(cfDayRow).join("");
+    cfDayHint();
+    $("cf-groups").innerHTML = cd.groups.map((g, i) => '<div class="cf-row g"><b>分組 ' + esc(g.id) + '</b><input class="field" data-cf="gname" data-i="' + i + '" value="' + esc(g.name) + '" placeholder="分組名稱" aria-label="分組 ' + esc(g.id) + ' 名稱">' +
+      '<button type="button" class="cf-x" data-cf="gdel" data-i="' + i + '" aria-label="刪除分組 ' + esc(g.name) + '"' + (cd.groups.length < 2 ? " disabled" : "") + ">×</button></div>").join("");
+    $("cf-people").innerHTML = cd.people.map((x, i) => '<div class="cf-row p"><input class="field" data-cf="pname" data-i="' + i + '" value="' + esc(x.name) + '" placeholder="名字" aria-label="旅伴名字">' +
+      '<select class="field cf-sel" data-cf="pgrp" data-i="' + i + '" aria-label="' + esc(x.name) + ' 的分組">' + cd.groups.map((g) => '<option value="' + esc(g.id) + '"' + (g.id === x.group ? " selected" : "") + ">" + esc(g.name || g.id) + "</option>").join("") + "</select>" +
+      '<label class="cf-me"><input type="radio" name="cf-owner" data-cf="owner" data-i="' + i + '"' + (x.key === cd.owner ? " checked" : "") + ">我</label>" +
+      '<button type="button" class="cf-x" data-cf="pdel" data-i="' + i + '" aria-label="刪除 ' + esc(x.name) + '"' + (cd.people.length < 2 ? " disabled" : "") + ">×</button></div>").join("");
+  }
+  // Typing only updates the draft; names that other rows show (regions, groups) redraw when the field is left.
+  $("cfsheet").addEventListener("input", (e) => {
+    const t = e.target, i = +t.dataset.i;
+    if (!cd) return;
+    if (t.dataset.cf === "rname") cd.regions[i].name = t.value;
+    else if (t.dataset.cf === "theme") cd.days[i].theme = t.value;
+    else if (t.dataset.cf === "gname") cd.groups[i].name = t.value;
+    else if (t.dataset.cf === "pname") cd.people[i].name = t.value;
+  });
+  $("cfsheet").addEventListener("change", (e) => {
+    const t = e.target, i = +t.dataset.i;
+    if (!cd) return;
+    if (t.dataset.cf === "dreg") cd.days[i].region = t.value;
+    else if (t.dataset.cf === "pgrp") cd.people[i].group = t.value;
+    else if (t.dataset.cf === "owner") cd.owner = cd.people[i].key;
+    else if (t.dataset.cf === "rname" || t.dataset.cf === "gname") cfSyncNames();
+    else if (t.id === "cf-start") { cd.start = t.value; cfSyncDays(); }
+    else if (t.id === "cf-days") {
+      const n = Math.round(+t.value);
+      if (!(n >= 1 && n <= 60)) { t.value = cd.days.length; return; }
+      while (cd.days.length < n) cd.days.push({ region: (cd.days[cd.days.length - 1] || {}).region || "", theme: "" });
+      cd.days.length = n;
+      cfSyncDays();
+    }
+  });
+  $("cfsheet").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || !cd) return;
+    const i = +b.dataset.i, k = b.dataset.cf;
+    if (k === "tone") cd.regions[i].tone = +b.dataset.v;
+    else if (k === "rdel" && cd.regions.length > 1) { const gone = cd.regions.splice(i, 1)[0].key; cd.days.forEach((d) => { if (d.region === gone) d.region = ""; }); }
+    else if (k === "gdel" && cd.groups.length > 1) { const gone = cd.groups.splice(i, 1)[0].id; cd.people.forEach((x) => { if (x.group === gone) x.group = cd.groups[0].id; }); }
+    else if (k === "pdel" && cd.people.length > 1) { const gone = cd.people.splice(i, 1)[0].key; if (cd.owner === gone) cd.owner = cd.people[0].key; }
+    else if (b.id === "cf-addreg") cd.regions.push({ key: freshKey("r", cd.regions.map((r) => r.key)), name: "", tone: (cd.regions.length % 6) + 1 });
+    else if (b.id === "cf-addgrp") cd.groups.push({ id: "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").find((l) => !cd.groups.some((g) => g.id === l)) || freshKey("G", cd.groups.map((g) => g.id)), name: "" });
+    else if (b.id === "cf-addppl") cd.people.push({ key: freshKey("p", cd.people.map((x) => x.key)), name: "", group: cd.groups[cd.groups.length - 1].id });
+    else return;
+    drawCfg();
+    if (/^cf-add/.test(b.id)) { const list = b.previousElementSibling.querySelectorAll("input.field"); if (list.length) list[list.length - 1].focus(); }
+  });
+  $("cfsheet").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (!cd || !isOwner || !db) return;
+    const title = $("cf-name").value.trim(), start = $("cf-start").value, rate = Number($("cf-rate").value);
+    if (!title) return cfErr("請填旅行名稱。");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return cfErr("請選出發日期。");
+    const people = cd.people.map((x) => ({ key: x.key, name: x.name.trim(), group: x.group }));
+    if (people.some((x) => !x.name)) return cfErr("每位旅伴都要有名字（不需要的請按 × 刪除）。");
+    if (!(rate > 0)) return cfErr("匯率要是大於 0 的數字，例如 0.21。");
+    const regions = Object.fromEntries(cd.regions.map((r) => [r.key, { name: r.name.trim() || "地區", tone: r.tone }]));
+    // Empty groups are dropped, so the split table never shows a row with nobody in it.
+    const groups = cd.groups.map((g) => ({ id: g.id, name: g.name.trim() || "分組 " + g.id, members: people.filter((x) => x.group === g.id).map((x) => x.key) })).filter((g) => g.members.length);
+    const base = cfgStored ? cfg : { tips: [], pack: {} };
+    const packItems = $("cf-pack").value.split("\n").map((t) => t.trim()).filter(Boolean);
+    const oldPack = base.pack && typeof base.pack === "object" ? base.pack : {};
+    // Owner overrides point at item positions, so they only survive an unchanged list.
+    const overrides = JSON.stringify(oldPack.items || []) === JSON.stringify(packItems) ? oldPack.ownerOverrides || {} : {};
+    const out = Object.assign({}, base, {
+      version: 1, title, start, regions,
+      days: cd.days.map((d) => ({ region: regions[d.region] ? d.region : "", theme: d.theme.trim() })),
+      people: people.map(({ key, name }) => ({ key, name })), groups,
+      owner: people.some((x) => x.key === cd.owner) ? cd.owner : people[0].key,
+      rate, twdLabel: $("cf-twd").value.trim(), costNote: $("cf-note").value.trim(),
+      pack: { items: packItems, ownerOverrides: overrides }
+    });
+    $("cf-save").disabled = true;
+    try { await db.doc("meta/config").set(out); closeCfg(); }
+    catch (err) { cfErr("儲存失敗，請再試一次（" + ((err && (err.code || err.message)) || "未知錯誤") + "）"); }
+    $("cf-save").disabled = false;
+  });
+  $("cf-cancel").addEventListener("click", closeCfg);
+  $("cf-scrim").addEventListener("click", (e) => { if (e.target === $("cf-scrim")) closeCfg(); });
+  $("cfgbtn").addEventListener("click", openCfg);
+  $("cfg-start").addEventListener("click", openCfg);
+
   function render() {
+    $("cfg-start").hidden = !(isOwner && db && cfgReady && !cfgStored);
     renderConfigBlocks();
     renderDays();
     renderPlan();
@@ -2485,6 +2686,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
         if (isEditor) { b.removeAttribute("aria-hidden"); b.removeAttribute("tabindex"); }
         else { b.setAttribute("aria-hidden", "true"); b.setAttribute("tabindex", "-1"); }
       });
+      $("cfgbtn").hidden = !isOwner;
       $("rolebtn").textContent = preview ? "結束檢視者畫面" : "檢視者畫面";
       $("rolebtn").classList.toggle("on", preview);
       if ((tab === "cost" || tab === "info") && !isEditor) setTab("plan");
