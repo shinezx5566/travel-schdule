@@ -251,3 +251,9 @@ Android（Chrome）
 - iPhone 相容：數字輸入以 focusout／Enter 存檔（不依賴 change 事件）；鍵盤需在點擊當下 focus 才會出現；PDF 改以頁面圖片在網頁內顯示（App 內開新分頁會被擋）。
 - 幣別目前固定日幣／台幣。
 - 離線版：`trip.html` 最前面的小段程式在沒有 `window.claude`、且不在 claude.ai 網域時，自己提供 `db`、`user`、`assets`、`downloads` 四種能力（資料與照片存 IndexedDB，下載在手機走分享選單、電腦走一般下載），其餘程式完全不用改；同時加上 manifest 與 service worker（`sw.js`：網頁本身先連網再用快取，函式庫與字型先用快取）。改了 `sw.js` 的快取清單時，記得調高裡面的 `VERSION`。
+
+---
+
+## 授權
+
+MIT，見 [LICENSE](LICENSE)。可自由使用、修改、再發布，需保留著作權聲明；本軟體不附任何保證。
