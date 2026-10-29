@@ -7,6 +7,7 @@
 | `trip.html` | 網頁本體（單一檔案，HTML＋CSS＋JS） |
 | `examples/example-content.json` | 範例內容檔，示範內容檔格式 |
 | `README.md` | 本文件：分頁、功能、邏輯與使用方式 |
+| `index.html`、`manifest.webmanifest`、`sw.js`、`icon-*.png` | 離線版（加入主畫面）用的檔案，見 1.1 |
 
 ---
 
@@ -17,6 +18,32 @@
 3. 擁有者到「花費」分頁最下面的「匯入／匯出內容」，按「匯入內容檔」選擇內容檔，再按一次「確定匯入」。
 4. 地圖：若有該趟的 `mapdata.json`，請 Claude 以 artifact 檔案的方式一併發布（網頁讀同目錄的 `mapdata.json`）；沒有的話地圖區塊自動隱藏。
 5. 分享：在 artifact 的分享選單邀請同行者。要讓他們寫筆記、使用攜帶清單，需給「Editor」權限。
+
+### 1.1 離線版（個人使用，像 app 一樣）
+
+同一個 `trip.html` 在 claude.ai 以外的地方打開，會自動變成**離線版**：資料存在這台裝置（瀏覽器的 IndexedDB），不需要登入，沒有網路也能看、能改。
+
+**架設（每個 repo 做一次）**：repo 設為公開 → Settings → Pages → Source 選「Deploy from a branch」，Branch 選 `main`、資料夾 `/ (root)` → 存檔。幾分鐘後網址是 `https://<帳號>.github.io/<repo 名稱>/`。用「Use this template」複製這個範本的人，在自己的 repo 做同樣設定即可。
+
+**安裝到手機**：
+- iPhone：用 Safari 打開網址 → 分享 → 加入主畫面。
+- Android：用 Chrome 打開網址 → 選單 → 安裝應用程式（或加到主畫面）。
+- 第一次要連網打開一次，之後離線也能開。有網路時打開會自動拿到最新版。
+
+**和 claude.ai 版的差別**：
+
+| | claude.ai 版 | 離線版 |
+|---|---|---|
+| 資料 | claude.ai 資料庫，多人共用 | 只在這台裝置 |
+| 角色 | 擁有者／編輯者／檢視者 | 只有自己，什麼都能改 |
+| 照片、收據 | 上傳到 artifact | 存在這台裝置 |
+| 匯出 | 內容檔（不含筆記、攜帶清單、照片） | 備份檔（全部都有，含照片） |
+| 給別人看 | 分享連結 | 匯出 PDF 或備份檔傳過去 |
+
+- **一定要備份**：換手機、刪掉 app、清除瀏覽器資料都會讓資料消失。到「花費 → 匯入／匯出內容」按「匯出備份檔」，在新裝置用「匯入內容檔」還原。
+- claude.ai 版匯出的內容檔也能匯入離線版，反過來也可以（離線版備份裡的筆記、照片會被忽略）。
+- 內容裡的 `/_blob/…` 圖片（路線示意圖、PDF 頁面）只在原本那個 artifact 有效，離線版看不到。
+- 需要多人共用時，改用 claude.ai 版。
 
 ---
 
@@ -199,3 +226,4 @@
 - 時間一律用日本時間（`Asia/Tokyo`）判斷今天、現在進行中的卡片與移動中路段。
 - iPhone 相容：數字輸入以 focusout／Enter 存檔（不依賴 change 事件）；鍵盤需在點擊當下 focus 才會出現；PDF 改以頁面圖片在網頁內顯示（App 內開新分頁會被擋）。
 - 幣別目前固定日幣／台幣。
+- 離線版：`trip.html` 最前面的小段程式在沒有 `window.claude`、且不在 claude.ai 網域時，自己提供 `db`、`user`、`assets`、`downloads` 四種能力（資料與照片存 IndexedDB，下載在手機走分享選單、電腦走一般下載），其餘程式完全不用改；同時加上 manifest 與 service worker（`sw.js`：網頁本身先連網再用快取，函式庫與字型先用快取）。改了 `sw.js` 的快取清單時，記得調高裡面的 `VERSION`。

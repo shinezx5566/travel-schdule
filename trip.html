@@ -600,7 +600,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     </div>
     <div class="box" id="io-box" hidden>
       <h3>匯入／匯出內容</h3>
-      <p class="fine">把這趟的設定和資料（行程、分攤表、零星花費、行前待辦、地圖連結、方案選擇）存成一個檔案，或從檔案載入。匯入會取代目前的內容；每個人的攜帶清單和筆記不在檔案裡。</p>
+      <p class="fine" id="io-desc">把這趟的設定和資料（行程、分攤表、零星花費、行前待辦、地圖連結、方案選擇）存成一個檔案，或從檔案載入。匯入會取代目前的內容；每個人的攜帶清單和筆記不在檔案裡。</p>
       <div class="io-btns"><button type="button" class="btn ghost" id="io-export">匯出內容檔</button><button type="button" class="btn danger" id="io-import">匯入內容檔</button></div>
       <input type="file" id="io-file" accept="application/json,.json" hidden>
       <p class="fine" id="io-msg" role="status"></p>
@@ -770,6 +770,130 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script>
+// Offline mode. Opened outside claude.ai (say from GitHub Pages, added to the home screen), the page gets a stand-in
+// for claude.ai's runtime that keeps everything on this device in IndexedDB: one person, who owns the trip.
+// db, user, assets and downloads answer the same calls the page makes in claude.ai, so the rest of the page runs as is.
+(function () {
+  if (window.claude || /(^|\.)claude\.(ai|com)$|claudeusercontent/.test(location.hostname) || !window.indexedDB) return;
+  const idb = new Promise((ok, no) => {
+    const r = indexedDB.open("trip-local", 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore("docs"); r.result.createObjectStore("assets"); };
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => no(r.error);
+  });
+  const run = (store, mode, fn) => idb.then((d) => new Promise((ok, no) => {
+    const t = d.transaction(store, mode), req = fn(t.objectStore(store));
+    t.oncomplete = () => ok(req && req.result);
+    t.onerror = t.onabort = () => no(t.error || new Error("儲存失敗"));
+  }));
+  const all = async (store) => { const [keys, vals] = await Promise.all([run(store, "readonly", (s) => s.getAllKeys()), run(store, "readonly", (s) => s.getAll())]); return keys.map((k, i) => [k, vals[i]]); };
+  const docs = new Map(), blobs = new Map(), urls = new Map();
+  const ready = (async () => {
+    (await all("docs")).forEach(([k, v]) => docs.set(k, v));
+    (await all("assets")).forEach(([k, v]) => { blobs.set(k, v); urls.set(k, URL.createObjectURL(v)); });
+  })();
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+
+  const clone = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
+  const isMap = (v) => v && typeof v === "object" && !Array.isArray(v);
+  const merge = (a, b) => { const o = Object.assign({}, a); Object.keys(b).forEach((k) => { o[k] = isMap(b[k]) && isMap(o[k]) ? merge(o[k], b[k]) : b[k]; }); return o; };
+  const newId = (n = 20) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (x) => "0123456789abcdefghijklmnopqrstuv"[x & 31]).join("");
+  const parentOf = (p) => p.slice(0, p.lastIndexOf("/"));
+  const colSubs = new Map(), docSubs = new Map();
+  const colSnap = (c) => ({ docs: [...docs].filter(([p]) => parentOf(p) === c).map(([p, d]) => ({ id: p.slice(c.length + 1), data: () => clone(d) })) });
+  const docSnap = (p) => ({ id: p.slice(p.lastIndexOf("/") + 1), exists: docs.has(p), data: () => clone(docs.get(p)) });
+  const sub = (map, key, cb, snap) => { const set = map.get(key) || new Set(); map.set(key, set.add(cb)); setTimeout(() => { if (set.has(cb)) cb(snap()); }, 0); return () => set.delete(cb); };
+  const notify = (p) => setTimeout(() => {
+    (colSubs.get(parentOf(p)) || []).forEach((cb) => cb(colSnap(parentOf(p))));
+    (docSubs.get(p) || []).forEach((cb) => cb(docSnap(p)));
+  }, 0);
+  const write = async (p, d) => {
+    if (d === null) { await run("docs", "readwrite", (s) => s.delete(p)); docs.delete(p); }
+    else { await run("docs", "readwrite", (s) => s.put(d, p)); docs.set(p, d); }
+    notify(p);
+  };
+  const doc = (p) => ({
+    id: p.slice(p.lastIndexOf("/") + 1),
+    get: async () => docSnap(p),
+    set: (d) => write(p, clone(d)),
+    update: (u) => { if (!docs.has(p)) return Promise.reject({ code: "not_found", message: "找不到這筆資料" }); return write(p, merge(docs.get(p), clone(u))); },
+    delete: () => write(p, null),
+    onSnapshot: (cb) => sub(docSubs, p, cb, () => docSnap(p))
+  });
+  const collection = (c) => ({
+    doc: (id) => doc(c + "/" + id),
+    add: async (d) => { const p = c + "/" + newId(); await write(p, clone(d)); return doc(p); },
+    get: async () => colSnap(c),
+    onSnapshot: (cb) => sub(colSubs, c, cb, () => colSnap(c))
+  });
+  const db = { doc, collection };
+  const user = { isOwner: async () => true, canEdit: async () => true, can: async () => true, id: async () => "me", me: async () => ({ id: "me", name: "" }), profiles: async () => ({}) };
+  const assets = {
+    upload: async (blob) => {
+      const id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("");
+      await run("assets", "readwrite", (s) => s.put(blob, id));
+      blobs.set(id, blob); urls.set(id, URL.createObjectURL(blob));
+      return { id, url: urls.get(id), sizeBytes: blob.size, contentType: blob.type };
+    },
+    list: async () => ({ assets: [...blobs].map(([id, b]) => ({ id, url: urls.get(id), sizeBytes: b.size, contentType: b.type })), usage: {} }),
+    delete: async (id) => { await run("assets", "readwrite", (s) => s.delete(id)); if (urls.has(id)) URL.revokeObjectURL(urls.get(id)); blobs.delete(id); urls.delete(id); }
+  };
+  const MIME = { pdf: "application/pdf", json: "application/json", png: "image/png", jpg: "image/jpeg" };
+  // A phone gets the share sheet (save to Files, send by LINE…); a computer a plain download. The share sheet needs a
+  // fresh tap, so after a long PDF render it can refuse; then the plain download is used.
+  const downloads = {
+    save: async ({ filename, data }) => {
+      const type = MIME[String(filename).split(".").pop().toLowerCase()] || "application/octet-stream";
+      const blob = data instanceof Blob ? new Blob([data], { type }) : new Blob([data], { type });
+      if (navigator.maxTouchPoints > 0 && navigator.canShare) {
+        const file = new File([blob], filename, { type });
+        try { if (navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return { status: "saved" }; } }
+        catch (e) { if (e && e.name === "AbortError") throw { code: "declined", message: "已取消" }; }
+      }
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      return { status: "saved" };
+    }
+  };
+  const caps = { db, user, assets, downloads };
+  window.claude = { use: async (name) => { await ready; return caps[name] || null; } };
+
+  // A full backup also carries what the content file leaves out: notes, the packing list and every photo.
+  const toB64 = (b) => new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(b); });
+  window.__tripLocal = {
+    urlOf: (id) => urls.get(id) || "",
+    backup: async () => {
+      const own = Object.fromEntries([...docs].filter(([p]) => /^(notes|data\/users)\//.test(p)).map(([p, d]) => [p, clone(d)]));
+      const files = {};
+      for (const [id, b] of blobs) files[id] = await toB64(b);
+      return { docs: own, assets: files };
+    },
+    restore: async (local) => {
+      for (const [id, uri] of Object.entries(local.assets || {})) {
+        if (blobs.has(id) || !/^[0-9a-f]{1,64}$/.test(id) || typeof uri !== "string" || !uri.startsWith("data:")) continue;
+        const blob = await (await fetch(uri)).blob();
+        await run("assets", "readwrite", (s) => s.put(blob, id));
+        blobs.set(id, blob); urls.set(id, URL.createObjectURL(blob));
+      }
+      for (const [p, d] of Object.entries(local.docs || {})) if (/^(notes|data\/users)\/[A-Za-z0-9_\-.~:@+\/]+$/.test(p) && isMap(d)) await write(p, clone(d));
+    }
+  };
+
+  // Installable as an app: manifest, home-screen icon, and a service worker that keeps the page usable offline.
+  if (/^https?:$/.test(location.protocol)) {
+    const add = (tag, attrs) => { const el = document.createElement(tag); Object.assign(el, attrs); document.head.appendChild(el); };
+    add("link", { rel: "manifest", href: "manifest.webmanifest" });
+    add("link", { rel: "apple-touch-icon", href: "icon-192.png" });
+    add("meta", { name: "apple-mobile-web-app-capable", content: "yes" });
+    add("meta", { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" });
+    add("meta", { name: "theme-color", content: "#16201c" });
+    if (navigator.serviceWorker) navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+})();
+</script>
+<script>
 (function () {
   // Everything specific to one trip lives in its config, so the page itself is a reusable frame:
   // meta/config (title, dates, regions, daily themes, people, bill groups, to-do tips, packing list; everyone reads it)
@@ -838,6 +962,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   const CATS = { transport: "交通", food: "餐飲", sight: "景點", stay: "住宿", activity: "體驗", shop: "採買" };
 
   const $ = (id) => document.getElementById(id);
+  // Offline mode (see the script above): data lives on this device, and the content file doubles as a full backup.
+  const LOCAL = !!window.__tripLocal;
   const svg = (k) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + (ICON[k] || ICON.sight) + "</svg>";
   const dateOf = (d) => { const x = new Date(START); x.setDate(x.getDate() + d - 1); return x; };
   const yen = (n) => "¥" + Math.round(n).toLocaleString("en-US");
@@ -1593,7 +1719,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   let notes = [], notesLoaded = false, canNote = false, myId = null, noteUser = null, assets = null, noteBy = {};
   const noteSubs = new Map(), noteNames = {};
   let nEdit = null, nPhotos = [], nAdded = [], nDelArmed = false, nBusy = 0;
-  const blobUrl = (id) => "/_blob/" + encodeURIComponent(id);
+  const blobUrl = (id) => (LOCAL ? window.__tripLocal.urlOf(id) : "/_blob/" + encodeURIComponent(id));
   // A note can carry any date, before, during or after the trip (date "YYYY-MM-DD"); older notes kept a trip day ("M/D").
   const isoOf = (d) => (d ? d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0") : "");
   function noteDate(n) {
@@ -2119,7 +2245,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     const pack = { format: CONTENT_FORMAT, version: 1, exportedAt: new Date().toISOString(),
       config: cfg, private: priv,
       data: { items: asDocs(items), split: asDocs(split), misc: asDocs(misc), todos: asDocs(todos), meta: { maps, plans: planSel } } };
-    const name = "trip-content-" + new Date().toISOString().slice(0, 10) + ".json";
+    if (LOCAL) pack.local = await window.__tripLocal.backup();
+    const name = (LOCAL ? "trip-backup-" : "trip-content-") + new Date().toISOString().slice(0, 10) + ".json";
     const text = JSON.stringify(pack, null, 1);
     let dl = null;
     try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
@@ -2149,6 +2276,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     jobs.push(() => db.doc("meta/plans").set(meta.plans && typeof meta.plans === "object" ? meta.plans : {}));
     jobs.push(() => db.doc("private/config").set(p.private && typeof p.private === "object" ? p.private : {}));
     jobs.push(() => db.doc("meta/config").set(p.config));
+    if (LOCAL && p.local && typeof p.local === "object") jobs.push(() => window.__tripLocal.restore(p.local));
     for (let i = 0; i < jobs.length; i++) {
       ioMsg("匯入中… " + (i + 1) + "／" + jobs.length);
       try { await jobs[i](); }
@@ -2321,6 +2449,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     setTimeout(() => { if (pendingPack === p) { pendingPack = null; $("io-import").textContent = "匯入內容檔"; ioMsg("已取消匯入。"); } }, 20000);
   });
 
+  if (LOCAL) $("io-export").textContent = "匯出備份檔";
+  if (LOCAL) $("io-desc").textContent = "離線版的資料只存在這台裝置。匯出的備份檔包含整趟的設定和資料，也包含筆記、攜帶清單和所有照片，換手機或清除瀏覽器資料前請先匯出。匯入會取代目前的內容。";
   applyConfig(null);
   dayOptions();
   render();
@@ -2361,7 +2491,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       render();
     };
     applyRole();
-    if (real.owner) {
+    if (real.owner && !LOCAL) {
       $("rolebtn").hidden = false;
       $("rolebtn").addEventListener("click", () => { preview = !preview; applyRole(); });
     }
@@ -2415,7 +2545,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     }, () => {});
     let gotItems = false, gotTodos = false;
     const done = () => {
-      if (gotItems && gotTodos) { loaded = true; setSync("ok", "已同步"); }
+      if (gotItems && gotTodos) { loaded = true; setSync("ok", LOCAL ? "存在這台裝置" : "已同步"); }
       render();
       if (loaded && !autoScrolled) { autoScrolled = true; jumpToNow(); }
       autoDone();
