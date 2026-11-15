@@ -778,7 +778,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     <label>付款方式<input class="field" id="sp-pay" autocomplete="off" placeholder="例如：只收現金"></label>
     <label>預算提示<input class="field" id="sp-hint" autocomplete="off" placeholder="例如：¥3,000/ppl"></label>
     <div class="seg" id="sp-cur" role="group" aria-label="預設幣別"><button type="button" data-cur="JPY">¥ 日幣</button><button type="button" data-cur="TWD">NT$ 台幣</button></div>
-    <p class="fine">誰要分攤（點一下取消，沒選的人會顯示「不分攤」）</p>
+    <p class="fine">誰要分攤：亮起來的人要分攤，點一下切換。都不選＝無分攤（例如請客），卡片只記誰付、付多少。</p>
     <div class="seg" id="sp-na" role="group" aria-label="分攤的人"></div>
     <p class="err" id="sp-err" role="alert" hidden></p>
     <div class="actions">
@@ -1524,6 +1524,12 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     return d;
   }
   let payerLines = [];
+  // 無分攤: nobody shares the bill (a treat). It keeps who paid and how much as a record, and owes no one anything.
+  const noShare = (r) => { const na = Array.isArray(r.na) ? r.na : []; return PEOPLE.every(([k]) => na.includes(k)); };
+  const noShareText = (r) => {
+    const a = moneyText(advOf(r).m);
+    return payerOf(r) === "none" || (!PAYERS.includes(r.payer) && !a) ? "無分攤" : "無分攤｜" + PNAME[payerOf(r)] + "付 " + (a || "金額未填");
+  };
 
   const splitLabel = (r) => String(r.label || "").replace(/^\d{1,2}\/\d{1,2}\s*/, "");
   const hintOf = (r, k) => { const h = r.cellHints && r.cellHints[k]; return h ? "約 " + h : ""; };
@@ -1555,16 +1561,17 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       const na = Array.isArray(r.na) ? r.na : [];
       const cells = r.cells && typeof r.cells === "object" ? r.cells : {};
       const payer = payerOf(r);
-      if (!noAdvance(r)) { const a = advOf(r).m; adv[payer].out.JPY += a.JPY; adv[payer].out.TWD += a.TWD; }
+      const solo = noShare(r);
+      if (!solo && !noAdvance(r)) { const a = advOf(r).m; adv[payer].out.JPY += a.JPY; adv[payer].out.TWD += a.TWD; }
       const settled = allSettled(r);
-      const payText = noAdvance(r) ? "無墊付" : PNAME[payer] + "墊 " + advText(r) + (settled ? " · 已收齊" : "");
+      const payText = solo ? noShareText(r) : noAdvance(r) ? "無墊付" : PNAME[payer] + "墊 " + advText(r) + (settled ? " · 已收齊" : "");
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
-      const payCls = "sc-payer" + (settled || payer === "none" ? " done" : "");
+      const payCls = "sc-payer" + (solo || settled || payer === "none" ? " done" : "");
       const head = "<b>" + esc(splitLabel(r)) + "</b>" + (sub ? "<small>" + esc(sub) + "</small>" : "");
       html += '<article class="scard"><div class="sc-top">' + (isOwner ? '<button type="button" class="sc-t sc-tbtn" data-spedit="' + esc(r.id) + '" aria-label="' + esc(splitLabel(r)) + '，點一下修改或刪除">' + head + "</button>" : '<div class="sc-t">' + head + "</div>") +
         (isOwner ? '<button type="button" class="' + payCls + '" data-payrow="' + esc(r.id) + '" aria-label="墊付：' + esc(payText) + '，點一下修改">' + esc(payText) + "</button>"
           : '<span class="' + payCls + '">' + esc(payText) + "</span>") + "</div>";
-      BILL_GROUPS.forEach((g) => {
+      if (!solo) BILL_GROUPS.forEach((g) => {
         html += '<div class="sc-row"><span class="sc-g" aria-label="' + g.name + '">' + g.id + '</span><div class="sc-chips">';
         g.members.forEach((k) => {
           const n = PNAME[k];
@@ -1651,7 +1658,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     if (!isOwner || !r.id) return;
     sEdit = { id: r.id, k };
     const isPay = k === "payer", v = isPay ? cellNum(r.paidAmt) : cellNum((r.cells || {})[k]);
-    $("ss-title").textContent = splitLabel(r) + " · " + (isPay ? "誰先墊付" : PNAME[k]);
+    $("ss-title").textContent = splitLabel(r) + " · " + (isPay ? (noShare(r) ? "誰付的（無分攤）" : "誰先墊付") : PNAME[k]);
     const sub = isPay ? [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜") : (r.cellHints && r.cellHints[k] ? "預估 " + r.cellHints[k] : "");
     $("ss-sub").textContent = sub || "";
     $("ss-sub").hidden = !sub;
@@ -1663,7 +1670,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     segSet("ss-state", "st", v !== null ? stateOf(r, k) : "owed");
     $("ss-amt").value = v === null ? "" : fmtNum(v);
     const auto = isPay ? moneyText(shareSum(r)) : "";
-    $("ss-amt").placeholder = isPay ? (auto ? "空白＝自動加總 " + auto : "墊付總額（空白＝自動加總）") : "金額";
+    $("ss-amt").placeholder = isPay ? (noShare(r) ? "總金額" : auto ? "空白＝自動加總 " + auto : "墊付總額（空白＝自動加總）") : "金額";
     $("ss-clear").hidden = isPay || v === null;
     $("ss-err").hidden = true;
     ssSync();
@@ -1676,7 +1683,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     const isPay = sEdit.k === "payer", payer = isPay ? segVal("ss-payers", "payer") : payerOf(rowOf(sEdit.id));
     $("ss-amtrow").hidden = isPay && payer === "none";
     $("ss-state").hidden = isPay || payer === "none";
-    $("ss-none").hidden = payer !== "none";
+    $("ss-none").hidden = payer !== "none" || noShare(rowOf(sEdit.id));
   }
   function closeSplitSheet() {
     $("ss-scrim").hidden = true;
@@ -2051,7 +2058,6 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     e.preventDefault();
     const name = $("sp-name").value.trim();
     if (!name) { spErr("請填名稱。"); return; }
-    if (spNa.length >= PEOPLE.length) { spErr("至少要有一個人分攤。"); return; }
     const d = $("sp-day").value;
     const body = { label: (d ? d + " " : "") + name, pay: $("sp-pay").value.trim(), hint: $("sp-hint").value.trim(), cur: segVal("sp-cur", "cur"), na: spNa.slice() };
     $("sp-save").disabled = true;
@@ -2606,7 +2612,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     split.slice().sort(byDate).forEach((r) => {
       const na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
       const payer = payerOf(r), amt = cellNum(r.paidAmt);
-      const pay = noAdvance(r) ? "無墊付" : PNAME[payer] + " " + advText(r);
+      const pay = noShare(r) ? noShareText(r) : noAdvance(r) ? "無墊付" : PNAME[payer] + " " + advText(r);
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       h += blk('<div class="pd-sp"><span>' + esc(splitHead(splitDate(r))) + "</span><span>" + esc(splitLabel(r)) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</span><span>" + esc(pay) + "</span>" + keys.map((k) => {
         if (na.includes(k)) return '<span class="pd-c na">—</span>';
@@ -2680,8 +2686,13 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
         part(k, "blank", "未記", x.blank, "", (y) => y.hint || "未填") +
         part(k, "paid", "已結", x.paid, fmtMoney(x.sum.paid), (y) => fmtCur(y.cur, y.v)) + "</section>";
     });
+    const solo = rows.filter(noShare);
+    if (solo.length) h += '<section class="pd-sec">' + blk("<h2>無分攤（請客）</h2>" + '<p class="pd-sub">沒有人分攤的帳，只記誰付、付多少，不算任何人的欠款。</p>' +
+      '<div class="pd-st head"><span>日期</span><span>項目</span><span>誰付</span><span>金額</span><span>收據</span></div>') +
+      solo.map((r) => { const a = moneyText(advOf(r).m), who = payerOf(r) === "none" || (!PAYERS.includes(r.payer) && !a) ? "—" : PNAME[payerOf(r)];
+        return blk('<div class="pd-st"><span>' + esc(splitHead(splitDate(r))) + "</span><span>" + esc(splitLabel(r)) + (r.pay ? "<small>" + esc(r.pay) + "</small>" : "") + "</span><span>" + esc(who) + "</span><span>" + esc(a || "未填") + "</span><span>" + (rcNo[r.id] ? "#" + rcNo[r.id] : "") + "</span></div>"); }).join("") + "</section>";
     rows.filter((r) => rcNo[r.id]).forEach((r) => {
-      const sub = [r.pay, noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付 " + advText(r)].filter(Boolean).join("｜");
+      const sub = [r.pay, noShare(r) ? noShareText(r) : noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付 " + advText(r)].filter(Boolean).join("｜");
       h += '<section class="pd-sec">' + blk("<h2>收據 #" + rcNo[r.id] + "　" + esc(splitHead(splitDate(r))) + " " + esc(splitLabel(r)) + '</h2><p class="pd-sub">' + esc(sub) + "</p>") +
         r.receipts.map((id) => blk('<img class="pd-rc" src="' + esc(blobUrl(id)) + '" alt="">')).join("") + "</section>";
     });

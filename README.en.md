@@ -100,6 +100,7 @@ Notes
 ### 3.2 Costs (owner)
 - **Split table**: one card per bill, in 「待填」 (to fill) / 「已填完」 (filled) sections, each sorted by date.
   - Top right: who advanced the money and how much; tap to change the person (including 「無墊付」 "nobody advanced it"), the currency and the amount. With the amount left blank it is the sum of everyone's shares (marked 「自動加總」 "auto sum"). A card whose payer was chosen always shows that payer; a card never given one, with no amount and every share settled, shows 「無墊付」.
+  - Selecting nobody under "who shares" in the card editor makes it **no-share** (「無分攤」, for example a treat): the top right shows 「無分攤｜X付 amount」 (no share, X paid), there are no per-person tiles, the card sits in the filled section, it counts as nobody's debt, and the statement lists it in its own section 「無分攤（請客）」.
   - Above: for each payer, what they advanced and what is still to come back from each person (the payer's own share is not a debt).
   - One tile per person, in rows by group: white = still owed, yellow = settled, dashed = not recorded, faded = not sharing. Tap a tile to enter the amount, currency, owed / settled.
   - Above: each group's spend and what it still owes; 「結清」 (Settle), tapped twice, turns that group's white tiles yellow at once.
