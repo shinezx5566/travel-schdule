@@ -1647,7 +1647,6 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   let sEdit = null; // { id, k } where k is a person key or "payer"
   const segSet = (seg, key, v) => $(seg).querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset[key] === v)));
   const segVal = (seg, key) => { const b = $(seg).querySelector('[aria-pressed="true"]'); return b ? b.dataset[key] : null; };
-  $("ss-payers").innerHTML = PAYERS.map((k) => '<button type="button" data-payer="' + k + '">' + PNAME[k] + "</button>").join("");
   function openSplitSheet(r, k) {
     if (!isOwner || !r.id) return;
     sEdit = { id: r.id, k };
@@ -1656,6 +1655,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     const sub = isPay ? [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜") : (r.cellHints && r.cellHints[k] ? "預估 " + r.cellHints[k] : "");
     $("ss-sub").textContent = sub || "";
     $("ss-sub").hidden = !sub;
+    // Built on each open: the people come from the trip config, which loads after this script runs.
+    $("ss-payers").innerHTML = PAYERS.map((p) => '<button type="button" data-payer="' + esc(p) + '">' + esc(PNAME[p]) + "</button>").join("");
     $("ss-payers").hidden = !isPay;
     segSet("ss-payers", "payer", payerOf(r));
     segSet("ss-cur", "cur", isPay ? payCurOf(r) : curOf(r, k));
