@@ -1507,7 +1507,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     return m;
   };
   const advOf = (r) => { const amt = cellNum(r.paidAmt); if (amt === null) return { m: shareSum(r), auto: true }; const m = { JPY: 0, TWD: 0 }; m[payCurOf(r)] = amt; return { m, auto: false }; };
-  const advText = (r) => { const a = advOf(r), t = moneyText(a.m); return t ? t + (a.auto ? "（自動加總）" : "") : "金額未填"; };
+  const advText = (r) => moneyText(advOf(r).m) || "金額未填";
   // Per-person debts: each share still owed is owed to its bill's payer, except the payer's own share.
   function splitDebts() {
     const d = Object.fromEntries(PEOPLE.map(([k]) => [k, {}]));
@@ -1564,7 +1564,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       const solo = noShare(r);
       if (!solo && !noAdvance(r)) { const a = advOf(r).m; adv[payer].out.JPY += a.JPY; adv[payer].out.TWD += a.TWD; }
       const settled = allSettled(r);
-      const payText = solo ? noShareText(r) : noAdvance(r) ? "無墊付" : PNAME[payer] + "墊 " + advText(r) + (settled ? " · 已收齊" : "");
+      const payText = solo ? noShareText(r) : noAdvance(r) ? "無墊付" : PNAME[payer] + "墊 " + advText(r);
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       const payCls = "sc-payer" + (solo || settled || payer === "none" ? " done" : "");
       const head = "<b>" + esc(splitLabel(r)) + "</b>" + (sub ? "<small>" + esc(sub) + "</small>" : "");
