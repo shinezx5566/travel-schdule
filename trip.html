@@ -1489,6 +1489,14 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   const payerOf = (r) => (PAYERS.includes(r.payer) ? r.payer : OWNER_KEY);
   const payCurOf = (r) => (r.payCur === "TWD" || r.payCur === "JPY" ? r.payCur : r.cur === "TWD" ? "TWD" : "JPY");
   const stateOf = (r, k) => (payerOf(r) !== "none" && r.cellState && r.cellState[k] === "owed" ? "owed" : "paid");
+  // Every share filled and settled: with no amount recorded nobody advanced it, otherwise it is all repaid.
+  const allSettled = (r) => {
+    const na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
+    const share = PEOPLE.map(([k]) => k).filter((k) => !na.includes(k));
+    return share.length > 0 && share.every((k) => cellNum(cells[k]) !== null && stateOf(r, k) === "paid");
+  };
+  // The card, the full PDF and the statement all call a bill 無墊付 on the same terms.
+  const noAdvance = (r) => payerOf(r) === "none" || (cellNum(r.paidAmt) === null && allSettled(r));
   const curOf = (r, k) => { const c = r.cellCur && r.cellCur[k]; return c === "TWD" || c === "JPY" ? c : r.cur === "TWD" ? "TWD" : "JPY"; };
 
   const splitLabel = (r) => String(r.label || "").replace(/^\d{1,2}\/\d{1,2}\s*/, "");
@@ -1522,10 +1530,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       const cells = r.cells && typeof r.cells === "object" ? r.cells : {};
       const payer = payerOf(r), pcur = payCurOf(r), amt = cellNum(r.paidAmt);
       if (amt !== null && payer !== "none") adv[payer].out[pcur] += amt;
-      // Every share filled and settled: with no amount recorded nobody advanced it, otherwise it is all repaid.
-      const share = PEOPLE.map(([k]) => k).filter((k) => !na.includes(k));
-      const settled = share.length > 0 && share.every((k) => cellNum(cells[k]) !== null && stateOf(r, k) === "paid");
-      const payText = payer === "none" || (amt === null && settled) ? "無墊付"
+      const settled = allSettled(r);
+      const payText = noAdvance(r) ? "無墊付"
         : PNAME[payer] + "墊 " + (amt === null ? "金額未填" : fmtCur(pcur, amt)) + (settled ? " · 已收齊" : "");
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       const payCls = "sc-payer" + (settled || payer === "none" ? " done" : "");
@@ -2571,7 +2577,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     split.slice().sort(byDate).forEach((r) => {
       const na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
       const payer = payerOf(r), amt = cellNum(r.paidAmt);
-      const pay = payer === "none" ? "無墊付" : PNAME[payer] + " " + (amt === null ? "未填" : fmtCur(payCurOf(r), amt));
+      const pay = noAdvance(r) ? "無墊付" : PNAME[payer] + " " + (amt === null ? "未填" : fmtCur(payCurOf(r), amt));
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       h += blk('<div class="pd-sp"><span>' + esc(splitHead(splitDate(r))) + "</span><span>" + esc(splitLabel(r)) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</span><span>" + esc(pay) + "</span>" + keys.map((k) => {
         if (na.includes(k)) return '<span class="pd-c na">—</span>';
@@ -2617,7 +2623,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
         per[k].sum[st][cur] += v;
       });
     });
-    const payerText = (r) => { const p = payerOf(r); return p === "none" ? "無墊付" : PNAME[p] + "墊付"; };
+    const payerText = (r) => (noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付");
     const line = (x, amount) => '<div class="pd-st"><span>' + esc(splitHead(splitDate(x.r))) + "</span><span>" + esc(splitLabel(x.r)) + (x.r.pay ? "<small>" + esc(x.r.pay) + "</small>" : "") + "</span><span>" + esc(payerText(x.r)) +
       "</span><span>" + esc(amount) + "</span><span>" + (rcNo[x.r.id] ? "#" + rcNo[x.r.id] : "") + "</span></div>";
     const head = '<div class="pd-st head"><span>日期</span><span>項目</span><span>墊付</span><span>金額</span><span>收據</span></div>';
@@ -2640,7 +2646,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
         part("paid", "已結", x.paid, fmtMoney(x.sum.paid), (y) => fmtCur(y.cur, y.v)) + "</section>";
     });
     rows.filter((r) => rcNo[r.id]).forEach((r) => {
-      const amt = cellNum(r.paidAmt), sub = [r.pay, payerOf(r) === "none" ? "無墊付" : PNAME[payerOf(r)] + "墊付" + (amt === null ? "" : " " + fmtCur(payCurOf(r), amt))].filter(Boolean).join("｜");
+      const amt = cellNum(r.paidAmt), sub = [r.pay, noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付" + (amt === null ? "" : " " + fmtCur(payCurOf(r), amt))].filter(Boolean).join("｜");
       h += '<section class="pd-sec">' + blk("<h2>收據 #" + rcNo[r.id] + "　" + esc(splitHead(splitDate(r))) + " " + esc(splitLabel(r)) + '</h2><p class="pd-sub">' + esc(sub) + "</p>") +
         r.receipts.map((id) => blk('<img class="pd-rc" src="' + esc(blobUrl(id)) + '" alt="">')).join("") + "</section>";
     });
