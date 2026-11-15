@@ -379,6 +379,18 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 #pdfdoc .pd-c.owed { border: 1px solid #5f6a64; }
 #pdfdoc .pd-c.blank, #pdfdoc .pd-c.na { color: #8b968f; }
 #pdfdoc .pd-todo { padding: 5px 0; border-top: 1px solid #e3ded2; }
+#pdfdoc .pd-ps, #pdfdoc .pd-st { display: grid; gap: 6px; align-items: start; padding: 6px 0; border-top: 1px solid #e3ded2; font-size: 12.5px; }
+#pdfdoc .pd-ps { grid-template-columns: minmax(0, 1fr) 180px 64px 180px; }
+#pdfdoc .pd-st { grid-template-columns: 88px minmax(0, 1fr) 116px 108px 56px; }
+#pdfdoc .pd-ps.head, #pdfdoc .pd-st.head { color: #5f6a64; font-weight: 700; border-top: 0; }
+#pdfdoc .pd-ps span:not(:first-child), #pdfdoc .pd-st span:nth-child(4) { text-align: right; font-variant-numeric: tabular-nums; }
+#pdfdoc .pd-st span:nth-child(4) { font-weight: 700; }
+#pdfdoc .pd-st small { display: block; color: #5f6a64; overflow-wrap: anywhere; }
+#pdfdoc .pd-h3 { display: flex; justify-content: space-between; gap: 10px; margin: 6px 0 2px; padding: 5px 10px; border-radius: 8px; font-size: 14.5px; font-weight: 700; }
+#pdfdoc .pd-h3.owed { border: 1px solid #5f6a64; }
+#pdfdoc .pd-h3.blank { border: 1.5px dashed #8b968f; }
+#pdfdoc .pd-h3.paid { background: #ecd9a0; }
+#pdfdoc .pd-rc { display: block; max-width: 100%; max-height: 940px; margin: 8px auto 0; border: 1px solid #e3ded2; }
 .flight-tips.plain summary h3 { color: var(--fg); }
 .adv-h { margin-top: 8px; }
 .notes { display: flex; flex-direction: column; gap: 10px; }
@@ -596,6 +608,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       <p class="err" id="split-err" role="alert" hidden></p>
       <div class="splitlist" id="split"></div>
       <button class="addrow" id="split-add" type="button" hidden>＋ 新增分攤項目</button>
+      <div class="io-btns" id="split-io" hidden><button type="button" class="btn ghost" id="split-pdf">匯出對帳單 PDF</button></div>
+      <p class="fine" id="split-msg" role="status"></p>
     </div>
     <div class="box" id="misc-box" hidden>
       <h3>零星花費</h3>
@@ -1483,6 +1497,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
   function renderSplit() {
     const box = $("split");
     $("split-add").hidden = !isOwner || !db || !splitLoaded;
+    $("split-io").hidden = !isOwner || !db || !splitLoaded || !split.length;
     if (!db || !splitLoaded) { box.innerHTML = '<p class="fine">' + (db ? "正在載入分攤表…" : "需要登入 claude.ai 才能看到分攤表。") + "</p>"; return; }
     if (!split.length) { box.innerHTML = '<p class="fine">分攤表還沒有項目。</p>'; return; }
     const byDate = (a, b) => splitDate(a) - splitDate(b) || String(a.time || "").localeCompare(String(b.time || "")) || (a.order ?? 0) - (b.order ?? 0);
@@ -2578,7 +2593,61 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     h += blk("<h2>行前待辦</h2>" + todos.slice().sort((a, b) => (a.done - b.done) || ((a.order ?? 0) - (b.order ?? 0))).map((t) => '<div class="pd-todo">' + (t.done ? "☑ " : "☐ ") + esc(t.text) + "</div>").join(""));
     return h + "</section>";
   }
-  async function exportPdf(full) {
+  // 分攤對帳單: an overview, then one section per person with their shares split into 尚欠 (filled, not yet repaid),
+  // 未記 (theirs to share, no amount yet) and 已結, each with subtotals per currency. Receipts follow once at the
+  // end, one page per bill, numbered in date order; each line points to its bill's number.
+  function splitPdfHtml() {
+    const blk = (h) => '<div class="pd-blk">' + h + "</div>";
+    const byDate = (a, b) => splitDate(a) - splitDate(b) || String(a.time || "").localeCompare(String(b.time || "")) || (a.order ?? 0) - (b.order ?? 0);
+    const rows = split.slice().sort(byDate);
+    const rcNo = {};
+    let n = 0;
+    rows.forEach((r) => { if (Array.isArray(r.receipts) && r.receipts.length) rcNo[r.id] = ++n; });
+    const money = () => ({ JPY: 0, TWD: 0 });
+    const fmtMoney = (m) => [m.JPY ? fmtCur("JPY", m.JPY) : "", m.TWD ? fmtCur("TWD", m.TWD) : ""].filter(Boolean).join(" ＋ ") || "0";
+    const per = Object.fromEntries(PEOPLE.map(([k]) => [k, { owed: [], blank: [], paid: [], sum: { owed: money(), paid: money() } }]));
+    rows.forEach((r) => {
+      const na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
+      PEOPLE.forEach(([k]) => {
+        if (na.includes(k)) return;
+        const v = cellNum(cells[k]);
+        if (v === null) { per[k].blank.push({ r, hint: hintOf(r, k) }); return; }
+        const st = stateOf(r, k), cur = curOf(r, k);
+        per[k][st].push({ r, v, cur });
+        per[k].sum[st][cur] += v;
+      });
+    });
+    const payerText = (r) => { const p = payerOf(r); return p === "none" ? "無墊付" : PNAME[p] + "墊付"; };
+    const line = (x, amount) => '<div class="pd-st"><span>' + esc(splitHead(splitDate(x.r))) + "</span><span>" + esc(splitLabel(x.r)) + (x.r.pay ? "<small>" + esc(x.r.pay) + "</small>" : "") + "</span><span>" + esc(payerText(x.r)) +
+      "</span><span>" + esc(amount) + "</span><span>" + (rcNo[x.r.id] ? "#" + rcNo[x.r.id] : "") + "</span></div>";
+    const head = '<div class="pd-st head"><span>日期</span><span>項目</span><span>墊付</span><span>金額</span><span>收據</span></div>';
+    const part = (cls, title, list, total, amount) => blk('<div class="pd-h3 ' + cls + '"><span>' + title + "（" + list.length + " 筆）</span><span>" + total + "</span></div>" + (list.length ? head : '<p class="pd-sub">沒有。</p>')) +
+      list.map((x) => blk(line(x, amount(x)))).join("");
+    const last = dateOf(DAYS.length);
+    let h = '<section class="pd-sec">' + blk("<h1>" + esc(cfg.title || "旅行行程") + ' 分攤對帳單</h1><p class="pd-sub">' + START.getFullYear() + "/" + (START.getMonth() + 1) + "/" + START.getDate() + " – " + (last.getMonth() + 1) + "/" + last.getDate() +
+      "｜共 " + rows.length + " 筆帳｜" + new Date().toLocaleDateString("zh-TW") + " 匯出</p>") +
+      blk('<p class="pd-sub">尚欠＝金額已填、還沒收回；未記＝要分攤但還沒填金額（附預估）；已結＝已付清或已收回。每筆右邊的 # 號對應最後附錄的收據。</p>') +
+      blk("<h2>每個人的合計</h2>" + '<div class="pd-ps head"><span>旅伴</span><span>尚欠</span><span>未記</span><span>已結</span></div>' +
+        PEOPLE.map(([k, name]) => '<div class="pd-ps"><span>' + esc(name) + "（" + esc(groupOf(k).name) + "）</span><span>" + esc(fmtMoney(per[k].sum.owed)) + "</span><span>" + per[k].blank.length + " 筆</span><span>" + esc(fmtMoney(per[k].sum.paid)) + "</span></div>").join(""));
+    const adv = $("split-sum").textContent;
+    if (adv) h += blk('<p class="pd-sub">' + esc(adv) + "</p>");
+    h += "</section>";
+    PEOPLE.forEach(([k, name]) => {
+      const x = per[k];
+      h += '<section class="pd-sec">' + blk("<h2>" + esc(name) + "（" + esc(groupOf(k).name) + "）</h2>") +
+        part("owed", "尚欠", x.owed, fmtMoney(x.sum.owed), (y) => fmtCur(y.cur, y.v)) +
+        part("blank", "未記", x.blank, "", (y) => y.hint || "未填") +
+        part("paid", "已結", x.paid, fmtMoney(x.sum.paid), (y) => fmtCur(y.cur, y.v)) + "</section>";
+    });
+    rows.filter((r) => rcNo[r.id]).forEach((r) => {
+      const amt = cellNum(r.paidAmt), sub = [r.pay, payerOf(r) === "none" ? "無墊付" : PNAME[payerOf(r)] + "墊付" + (amt === null ? "" : " " + fmtCur(payCurOf(r), amt))].filter(Boolean).join("｜");
+      h += '<section class="pd-sec">' + blk("<h2>收據 #" + rcNo[r.id] + "　" + esc(splitHead(splitDate(r))) + " " + esc(splitLabel(r)) + '</h2><p class="pd-sub">' + esc(sub) + "</p>") +
+        r.receipts.map((id) => blk('<img class="pd-rc" src="' + esc(blobUrl(id)) + '" alt="">')).join("") + "</section>";
+    });
+    return h;
+  }
+  const PDF_NAME = { family: "家人版", full: "完整版", split: "分攤對帳單" };
+  async function exportPdf(kind, pdfMsg) {
     if (pdfBusy) return;
     let dl = null;
     try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) {}
@@ -2589,9 +2658,15 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     try {
       pdfMsg("正在載入 PDF 工具…");
       for (const src of PDF_LIBS) await loadJs(src);
-      doc.innerHTML = pdfHtml(full);
+      doc.innerHTML = kind === "split" ? splitPdfHtml() : pdfHtml(kind === "full");
       document.body.appendChild(doc);
       await Promise.all([...doc.querySelectorAll("img")].map((im) => (im.complete ? null : new Promise((ok) => { im.onload = im.onerror = ok; }))));
+      // An image that cannot load (say a /_blob/ receipt imported from another copy) would leave a blank gap.
+      doc.querySelectorAll("img").forEach((im) => {
+        if (im.naturalWidth) return;
+        if (im.classList.contains("pd-rc")) { const t = document.createElement("p"); t.className = "pd-sub"; t.textContent = "（這張收據在這裡讀不到，可能只存在原本的 claude.ai 頁面。）"; im.replaceWith(t); }
+        else im.remove();
+      });
       try { await document.fonts.ready; } catch (e) {}
       const pdf = new window.jspdf.jsPDF({ unit: "pt", format: "a4" });
       const PW = 595.28, PH = 841.89, M = 30, W = doc.offsetWidth, k = (PW - 2 * M) / W, H = (PH - 2 * M) / k;
@@ -2617,7 +2692,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
           y = cut;
         }
       }
-      const name = (cfg.title || "旅行行程").replace(/[\\/:*?"<>|]/g, "") + "-" + (full ? "完整版" : "家人版") + ".pdf";
+      const name = (cfg.title || "旅行行程").replace(/[\\/:*?"<>|]/g, "") + "-" + PDF_NAME[kind] + ".pdf";
       pdfMsg("請在跳出的視窗確認下載。");
       await dl.save({ filename: name, data: pdf.output("blob") });
       pdfMsg("已匯出 " + name);
@@ -2628,7 +2703,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       pdfBusy = false;
     }
   }
-  $("pdf-box").addEventListener("click", (e) => { const b = e.target.closest("[data-pdf-ver]"); if (b && isOwner && db) exportPdf(b.dataset.pdfVer === "full"); });
+  $("pdf-box").addEventListener("click", (e) => { const b = e.target.closest("[data-pdf-ver]"); if (b && isOwner && db) exportPdf(b.dataset.pdfVer === "full" ? "full" : "family", pdfMsg); });
+  $("split-pdf").addEventListener("click", () => { if (isOwner && db) exportPdf("split", (t) => { $("split-msg").textContent = t; }); });
   $("io-export").addEventListener("click", () => { if (isOwner && db) exportContent(); });
   $("io-import").addEventListener("click", () => {
     if (!isOwner || !db) return;

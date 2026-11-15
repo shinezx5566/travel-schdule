@@ -104,6 +104,7 @@ Notes
   - Above: each group's spend and what it still owes; 「結清」 (Settle), tapped twice, turns that group's white tiles yellow at once.
   - Each card can carry receipt photos.
   - 「＋ 新增分攤項目」 (+ Add bill) adds a card; tapping a card's title (✎) edits the date, name, payment method, budget hint, default currency and who shares it, or deletes it (two taps; its receipts go too).
+  - 「匯出對帳單 PDF」 (Export statement PDF): one PDF. It opens with each person's totals for still owed / not recorded / settled and a summary of who advanced what; then one section per person in three parts, 「尚欠」 (amount filled, not yet repaid), 「未記」 (theirs to share but no amount yet, with the estimate) and 「已結」 (settled), listing date, item, payment method, who advanced it, amount and receipt number; and finally an appendix with each bill's receipt photos (one page per bill, numbered #1, #2… by date). A receipt image that cannot be loaded is replaced by a one-line note.
 - **Misc costs** (「零星花費」): spending outside the split table (parking, tickets…), with receipts.
 - **Cash section**: HTML from the private settings (for example who carries how much cash).
 - **Totals**: group total (in NT$), per person, yen, NT$, by category, by day.
