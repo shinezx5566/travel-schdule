@@ -428,7 +428,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
 .rolebtn.icon { padding: 5px 8px; line-height: 0; }
 .rolebtn.icon svg { width: 18px; height: 18px; }
 .rolebtn.on { background: var(--accent); border-color: var(--accent); color: #1a120c; }
-.split-sum { margin: 0; font-size: 14px; font-weight: 700; color: var(--fg); }
+.split-sum { margin: 0; font-size: 14px; font-weight: 700; color: var(--fg); white-space: pre-line; }
 .list { display: flex; flex-direction: column; }
 .li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14px; }
 .li:first-child { border-top: 0; }
@@ -1495,9 +1495,35 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     const share = PEOPLE.map(([k]) => k).filter((k) => !na.includes(k));
     return share.length > 0 && share.every((k) => cellNum(cells[k]) !== null && stateOf(r, k) === "paid");
   };
-  // The card, the full PDF and the statement all call a bill 無墊付 on the same terms.
-  const noAdvance = (r) => payerOf(r) === "none" || (cellNum(r.paidAmt) === null && allSettled(r));
   const curOf = (r, k) => { const c = r.cellCur && r.cellCur[k]; return c === "TWD" || c === "JPY" ? c : r.cur === "TWD" ? "TWD" : "JPY"; };
+  // Who advanced a bill, the same on the card, the full PDF and the statement: a payer chosen on the card always
+  // shows; a card never given one is 無墊付 once every share is settled with no amount recorded, else the default payer.
+  const noAdvance = (r) => payerOf(r) === "none" || (!PAYERS.includes(r.payer) && cellNum(r.paidAmt) === null && allSettled(r));
+  const moneyText = (m, sep = "＋") => [m.JPY ? fmtCur("JPY", m.JPY) : "", m.TWD ? fmtCur("TWD", m.TWD) : ""].filter(Boolean).join(sep);
+  // The amount advanced: as entered, or else the sum of everyone's filled shares (auto), per currency.
+  const shareSum = (r) => {
+    const m = { JPY: 0, TWD: 0 }, na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
+    PEOPLE.forEach(([k]) => { const v = cellNum(cells[k]); if (!na.includes(k) && v !== null) m[curOf(r, k)] += v; });
+    return m;
+  };
+  const advOf = (r) => { const amt = cellNum(r.paidAmt); if (amt === null) return { m: shareSum(r), auto: true }; const m = { JPY: 0, TWD: 0 }; m[payCurOf(r)] = amt; return { m, auto: false }; };
+  const advText = (r) => { const a = advOf(r), t = moneyText(a.m); return t ? t + (a.auto ? "（自動加總）" : "") : "金額未填"; };
+  // Per-person debts: each share still owed is owed to its bill's payer, except the payer's own share.
+  function splitDebts() {
+    const d = Object.fromEntries(PEOPLE.map(([k]) => [k, {}]));
+    split.forEach((r) => {
+      if (noAdvance(r)) return;
+      const p = payerOf(r), na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
+      PEOPLE.forEach(([k]) => {
+        const v = cellNum(cells[k]);
+        if (k === p || na.includes(k) || v === null || stateOf(r, k) !== "owed") return;
+        const m = d[k][p] || (d[k][p] = { JPY: 0, TWD: 0 });
+        m[curOf(r, k)] += v;
+      });
+    });
+    return d;
+  }
+  let payerLines = [];
 
   const splitLabel = (r) => String(r.label || "").replace(/^\d{1,2}\/\d{1,2}\s*/, "");
   const hintOf = (r, k) => { const h = r.cellHints && r.cellHints[k]; return h ? "約 " + h : ""; };
@@ -1516,7 +1542,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     const money = () => ({ JPY: 0, TWD: 0 });
     const sums = {}, adv = {};
     BILL_GROUPS.forEach((g) => { sums[g.id] = { paid: money(), owed: money() }; });
-    PEOPLE.forEach(([k]) => { adv[k] = { out: money(), back: Object.fromEntries(BILL_GROUPS.map((g) => [g.id, money()])) }; });
+    PEOPLE.forEach(([k]) => { adv[k] = { out: money() }; });
     let html = '<p class="split-legend"><span><i class="owed"></i>白＝尚欠</span><span><i class="paid"></i>黃＝已結</span><span><i class="blank"></i>虛線＝還沒記</span></p>';
     let grp = null, sec = null;
     rows.forEach((r) => {
@@ -1528,11 +1554,10 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       if (splitDate(r) !== grp) { grp = splitDate(r); html += '<h4 class="sday">' + esc(splitHead(grp)) + "</h4>"; }
       const na = Array.isArray(r.na) ? r.na : [];
       const cells = r.cells && typeof r.cells === "object" ? r.cells : {};
-      const payer = payerOf(r), pcur = payCurOf(r), amt = cellNum(r.paidAmt);
-      if (amt !== null && payer !== "none") adv[payer].out[pcur] += amt;
+      const payer = payerOf(r);
+      if (!noAdvance(r)) { const a = advOf(r).m; adv[payer].out.JPY += a.JPY; adv[payer].out.TWD += a.TWD; }
       const settled = allSettled(r);
-      const payText = noAdvance(r) ? "無墊付"
-        : PNAME[payer] + "墊 " + (amt === null ? "金額未填" : fmtCur(pcur, amt)) + (settled ? " · 已收齊" : "");
+      const payText = noAdvance(r) ? "無墊付" : PNAME[payer] + "墊 " + advText(r) + (settled ? " · 已收齊" : "");
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       const payCls = "sc-payer" + (settled || payer === "none" ? " done" : "");
       const head = "<b>" + esc(splitLabel(r)) + "</b>" + (sub ? "<small>" + esc(sub) + "</small>" : "");
@@ -1547,7 +1572,6 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
           const v = cellNum(cells[k]), filled = v !== null, cur = curOf(r, k), st = filled ? stateOf(r, k) : "blank";
           if (filled) {
             sums[g.id][st][cur] += v;
-            if (st === "owed") adv[payer].back[g.id][cur] += v;
           }
           const val = filled ? fmtCur(cur, v) : hintOf(r, k) || "未記";
           const aria = n + "，" + (filled ? val + (st === "paid" ? "，已結" : "，尚欠") : "還沒記");
@@ -1561,17 +1585,20 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
       html += rcStrip("split", r) + "</article>";
     });
     box.innerHTML = html;
-    const fmtMoney = (s, sep) => [s.JPY ? fmtCur("JPY", s.JPY) : "", s.TWD ? fmtCur("TWD", s.TWD) : ""].filter(Boolean).join(sep);
-    const lines = PEOPLE.filter(([k]) => fmtMoney(adv[k].out, "")).map(([k, n]) =>
-      n + "墊付 " + fmtMoney(adv[k].out, "＋") + "，待收回：" + BILL_GROUPS.map((g) => g.name + " " + (fmtMoney(adv[k].back[g.id], "＋") || "0")).join("、"));
-    $("split-sum").hidden = !lines.length;
-    $("split-sum").textContent = lines.join("；");
+    // One line per payer: what they advanced and, person by person, what is still to come back to them.
+    const debts = splitDebts();
+    payerLines = PEOPLE.filter(([k]) => moneyText(adv[k].out)).map(([p, n]) => {
+      const back = PEOPLE.filter(([k]) => debts[k][p] && moneyText(debts[k][p])).map(([k, m]) => m + " " + moneyText(debts[k][p]));
+      return n + "墊付 " + moneyText(adv[p].out) + "，" + (back.length ? "待收回：" + back.join("、") : "已收齊");
+    });
+    $("split-sum").hidden = !payerLines.length;
+    $("split-sum").textContent = payerLines.join("\n");
     // Each group's total spend (settled + owed) and what it still owes; a small 結清 beside it settles all of that, once, at the end.
     const spend = (g) => { const t = money(); ["paid", "owed"].forEach((st) => { t.JPY += sums[g.id][st].JPY; t.TWD += sums[g.id][st].TWD; }); return t; };
     $("split-settle").hidden = false;
     $("split-settle").innerHTML = BILL_GROUPS.map((g) => {
-      const owed = fmtMoney(sums[g.id].owed, "＋");
-      return '<span class="gtot">' + g.name + "消費 " + esc(fmtMoney(spend(g), "＋") || "0") + (owed ? '<small>尚欠 ' + esc(owed) + "</small>" : "") +
+      const owed = moneyText(sums[g.id].owed, "＋");
+      return '<span class="gtot">' + g.name + "消費 " + esc(moneyText(spend(g), "＋") || "0") + (owed ? '<small>尚欠 ' + esc(owed) + "</small>" : "") +
         (isOwner && owed ? '<button type="button" class="btn ghost" data-settle="' + g.id + '" aria-label="' + g.name + " 尚欠 " + esc(owed) + '，全部標為已結">結清</button>' : "") + "</span>";
     }).join("");
     const groupsText = BILL_GROUPS.map((g) => g.name + "（" + g.members.map((k) => PNAME[k]).join("・") + "）").join("和");
@@ -1634,7 +1661,8 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     segSet("ss-cur", "cur", isPay ? payCurOf(r) : curOf(r, k));
     segSet("ss-state", "st", v !== null ? stateOf(r, k) : "owed");
     $("ss-amt").value = v === null ? "" : fmtNum(v);
-    $("ss-amt").placeholder = isPay ? "墊付總額" : "金額";
+    const auto = isPay ? moneyText(shareSum(r)) : "";
+    $("ss-amt").placeholder = isPay ? (auto ? "空白＝自動加總 " + auto : "墊付總額（空白＝自動加總）") : "金額";
     $("ss-clear").hidden = isPay || v === null;
     $("ss-err").hidden = true;
     ssSync();
@@ -2577,7 +2605,7 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
     split.slice().sort(byDate).forEach((r) => {
       const na = Array.isArray(r.na) ? r.na : [], cells = r.cells && typeof r.cells === "object" ? r.cells : {};
       const payer = payerOf(r), amt = cellNum(r.paidAmt);
-      const pay = noAdvance(r) ? "無墊付" : PNAME[payer] + " " + (amt === null ? "未填" : fmtCur(payCurOf(r), amt));
+      const pay = noAdvance(r) ? "無墊付" : PNAME[payer] + " " + advText(r);
       const sub = [r.pay, r.hint ? "預算 " + r.hint : ""].filter(Boolean).join("｜");
       h += blk('<div class="pd-sp"><span>' + esc(splitHead(splitDate(r))) + "</span><span>" + esc(splitLabel(r)) + (sub ? "<small>" + esc(sub) + "</small>" : "") + "</span><span>" + esc(pay) + "</span>" + keys.map((k) => {
         if (na.includes(k)) return '<span class="pd-c na">—</span>';
@@ -2623,30 +2651,36 @@ details.cat[open] summary .chev { transform: rotate(90deg); }
         per[k].sum[st][cur] += v;
       });
     });
-    const payerText = (r) => (noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付");
-    const line = (x, amount) => '<div class="pd-st"><span>' + esc(splitHead(splitDate(x.r))) + "</span><span>" + esc(splitLabel(x.r)) + (x.r.pay ? "<small>" + esc(x.r.pay) + "</small>" : "") + "</span><span>" + esc(payerText(x.r)) +
+    const debts = splitDebts();
+    const owesText = (k) => PEOPLE.filter(([p]) => debts[k][p] && moneyText(debts[k][p])).map(([p, n]) => n + " " + moneyText(debts[k][p])).join("、");
+    const backText = (p) => PEOPLE.filter(([k]) => debts[k][p] && moneyText(debts[k][p])).map(([k, n]) => n + " " + moneyText(debts[k][p])).join("、");
+    const payerText = (r, k) => (noAdvance(r) ? "無墊付" : payerOf(r) === k ? "自己墊付" : PNAME[payerOf(r)] + "墊付");
+    const line = (x, amount, k) => '<div class="pd-st"><span>' + esc(splitHead(splitDate(x.r))) + "</span><span>" + esc(splitLabel(x.r)) + (x.r.pay ? "<small>" + esc(x.r.pay) + "</small>" : "") + "</span><span>" + esc(payerText(x.r, k)) +
       "</span><span>" + esc(amount) + "</span><span>" + (rcNo[x.r.id] ? "#" + rcNo[x.r.id] : "") + "</span></div>";
     const head = '<div class="pd-st head"><span>日期</span><span>項目</span><span>墊付</span><span>金額</span><span>收據</span></div>';
-    const part = (cls, title, list, total, amount) => blk('<div class="pd-h3 ' + cls + '"><span>' + title + "（" + list.length + " 筆）</span><span>" + total + "</span></div>" + (list.length ? head : '<p class="pd-sub">沒有。</p>')) +
-      list.map((x) => blk(line(x, amount(x)))).join("");
+    const part = (k, cls, title, list, total, amount) => blk('<div class="pd-h3 ' + cls + '"><span>' + title + "（" + list.length + " 筆）</span><span>" + total + "</span></div>" + (list.length ? head : '<p class="pd-sub">沒有。</p>')) +
+      list.map((x) => blk(line(x, amount(x), k))).join("");
     const last = dateOf(DAYS.length);
     let h = '<section class="pd-sec">' + blk("<h1>" + esc(cfg.title || "旅行行程") + ' 分攤對帳單</h1><p class="pd-sub">' + START.getFullYear() + "/" + (START.getMonth() + 1) + "/" + START.getDate() + " – " + (last.getMonth() + 1) + "/" + last.getDate() +
       "｜共 " + rows.length + " 筆帳｜" + new Date().toLocaleDateString("zh-TW") + " 匯出</p>") +
-      blk('<p class="pd-sub">尚欠＝金額已填、還沒收回；未記＝要分攤但還沒填金額（附預估）；已結＝已付清或已收回。每筆右邊的 # 號對應最後附錄的收據。</p>') +
+      blk('<p class="pd-sub">尚欠＝金額已填、還沒收回；未記＝要分攤但還沒填金額（附預估）；已結＝已付清或已收回。每筆右邊的 # 號對應最後附錄的收據。墊付金額沒填的，以大家分攤金額自動加總。</p>') +
       blk("<h2>每個人的合計</h2>" + '<div class="pd-ps head"><span>旅伴</span><span>尚欠</span><span>未記</span><span>已結</span></div>' +
         PEOPLE.map(([k, name]) => '<div class="pd-ps"><span>' + esc(name) + "（" + esc(groupOf(k).name) + "）</span><span>" + esc(fmtMoney(per[k].sum.owed)) + "</span><span>" + per[k].blank.length + " 筆</span><span>" + esc(fmtMoney(per[k].sum.paid)) + "</span></div>").join(""));
-    const adv = $("split-sum").textContent;
-    if (adv) h += blk('<p class="pd-sub">' + esc(adv) + "</p>");
+    const owing = PEOPLE.filter(([k]) => owesText(k));
+    if (owing.length) h += blk("<h2>誰欠誰</h2>" + owing.map(([k, name]) => '<div class="pd-ps"><span>' + esc(name) + " 要付給</span><span style=\"grid-column: 2 / -1; text-align: left\">" + esc(owesText(k)) + "</span></div>").join(""));
+    if (payerLines.length) h += blk("<h2>墊付</h2>" + payerLines.map((t) => '<p class="pd-sub">' + esc(t) + "</p>").join(""));
     h += "</section>";
     PEOPLE.forEach(([k, name]) => {
       const x = per[k];
-      h += '<section class="pd-sec">' + blk("<h2>" + esc(name) + "（" + esc(groupOf(k).name) + "）</h2>") +
-        part("owed", "尚欠", x.owed, fmtMoney(x.sum.owed), (y) => fmtCur(y.cur, y.v)) +
-        part("blank", "未記", x.blank, "", (y) => y.hint || "未填") +
-        part("paid", "已結", x.paid, fmtMoney(x.sum.paid), (y) => fmtCur(y.cur, y.v)) + "</section>";
+      const owes = owesText(k), back = backText(k);
+      h += '<section class="pd-sec">' + blk("<h2>" + esc(name) + "（" + esc(groupOf(k).name) + "）</h2>" +
+        '<p class="pd-sub">要付給：' + esc(owes || "沒有") + (back ? "｜要收回：" + esc(back) : "") + "</p>") +
+        part(k, "owed", "尚欠", x.owed, fmtMoney(x.sum.owed), (y) => fmtCur(y.cur, y.v)) +
+        part(k, "blank", "未記", x.blank, "", (y) => y.hint || "未填") +
+        part(k, "paid", "已結", x.paid, fmtMoney(x.sum.paid), (y) => fmtCur(y.cur, y.v)) + "</section>";
     });
     rows.filter((r) => rcNo[r.id]).forEach((r) => {
-      const amt = cellNum(r.paidAmt), sub = [r.pay, noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付" + (amt === null ? "" : " " + fmtCur(payCurOf(r), amt))].filter(Boolean).join("｜");
+      const sub = [r.pay, noAdvance(r) ? "無墊付" : PNAME[payerOf(r)] + "墊付 " + advText(r)].filter(Boolean).join("｜");
       h += '<section class="pd-sec">' + blk("<h2>收據 #" + rcNo[r.id] + "　" + esc(splitHead(splitDate(r))) + " " + esc(splitLabel(r)) + '</h2><p class="pd-sub">' + esc(sub) + "</p>") +
         r.receipts.map((id) => blk('<img class="pd-rc" src="' + esc(blobUrl(id)) + '" alt="">')).join("") + "</section>";
     });

@@ -99,12 +99,13 @@ Notes
 
 ### 3.2 Costs (owner)
 - **Split table**: one card per bill, in 「待填」 (to fill) / 「已填完」 (filled) sections, each sorted by date.
-  - Top right: who advanced the money and how much; tap to change the person (including 「無墊付」 "nobody advanced it"), the currency and the amount.
+  - Top right: who advanced the money and how much; tap to change the person (including 「無墊付」 "nobody advanced it"), the currency and the amount. With the amount left blank it is the sum of everyone's shares (marked 「自動加總」 "auto sum"). A card whose payer was chosen always shows that payer; a card never given one, with no amount and every share settled, shows 「無墊付」.
+  - Above: for each payer, what they advanced and what is still to come back from each person (the payer's own share is not a debt).
   - One tile per person, in rows by group: white = still owed, yellow = settled, dashed = not recorded, faded = not sharing. Tap a tile to enter the amount, currency, owed / settled.
   - Above: each group's spend and what it still owes; 「結清」 (Settle), tapped twice, turns that group's white tiles yellow at once.
   - Each card can carry receipt photos.
   - 「＋ 新增分攤項目」 (+ Add bill) adds a card; tapping a card's title (✎) edits the date, name, payment method, budget hint, default currency and who shares it, or deletes it (two taps; its receipts go too).
-  - 「匯出對帳單 PDF」 (Export statement PDF): one PDF. It opens with each person's totals for still owed / not recorded / settled and a summary of who advanced what; then one section per person in three parts, 「尚欠」 (amount filled, not yet repaid), 「未記」 (theirs to share but no amount yet, with the estimate) and 「已結」 (settled), listing date, item, payment method, who advanced it, amount and receipt number; and finally an appendix with each bill's receipt photos (one page per bill, numbered #1, #2… by date). A receipt image that cannot be loaded is replaced by a one-line note.
+  - 「匯出對帳單 PDF」 (Export statement PDF): one PDF. It opens with each person's totals for still owed / not recorded / settled, "who owes whom" (how much each person owes each payer) and a summary of who advanced what; then one section per person: whom they owe and whom they collect from, then three parts, 「尚欠」 (amount filled, not yet repaid), 「未記」 (theirs to share but no amount yet, with the estimate) and 「已結」 (settled), listing date, item, payment method, who advanced it, amount and receipt number; and finally an appendix with each bill's receipt photos (one page per bill, numbered #1, #2… by date). A receipt image that cannot be loaded is replaced by a one-line note.
 - **Misc costs** (「零星花費」): spending outside the split table (parking, tickets…), with receipts.
 - **Cash section**: HTML from the private settings (for example who carries how much cash).
 - **Totals**: group total (in NT$), per person, yen, NT$, by category, by day.
